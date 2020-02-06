@@ -537,4 +537,4 @@ class CloudFormationBuilder:
 
 
 if __name__ == '__main__':
-    CloudFormationBuilder.generate(input_filename=sys.argv[1], output_filename=sys.argv[2])
+    CloudFormationBuilder.generate(input_filename=sys.argv[1], output_filename=sys.argv[2], tags_filename=sys.argv[3])
