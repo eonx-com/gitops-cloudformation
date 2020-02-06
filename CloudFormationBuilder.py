@@ -87,6 +87,9 @@ class CloudFormationBuilder:
         rendered += '  Environment: {environment}\n'.format(environment=template['environment'])
         rendered += '  Project: {project}\n'.format(project=template['project'])
 
+        if 'bucket' in template:
+            rendered += '  Bucket: {bucket}\n'.format(bucket=template['bucket'])
+            
         # Iterate all records and record the details of items we need to create
         for record_id, record in yaml_content['records'].items():
             # Validate the record
