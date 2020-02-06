@@ -17,7 +17,7 @@ class CloudFormationBuilder:
     project = ''
 
     @staticmethod
-    def generate(input_filename, output_filename) -> None:
+    def generate(input_filename, output_filename, tags_filename) -> None:
         """
         Generate output template
 
@@ -224,7 +224,6 @@ class CloudFormationBuilder:
         file.close()
 
         # Write tag string to file for CLI stack operations
-        tags_filename = '{output_filename}.tags'.format(output_filename=output_filename)
         print('Saving Tag File: {tags_filename}'.format(tags_filename=tags_filename))
 
         tags = [
