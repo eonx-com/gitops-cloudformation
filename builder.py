@@ -244,7 +244,6 @@ class CloudFormationBuilder:
                 rendered += line + '\n'
 
         print('Saving Template: {output_filename} ({bytes} Bytes)'.format(output_filename=output_filename, bytes=len(rendered)))
-        print()
 
         # Write output file to disk
         file = open(output_filename, 'wt')
@@ -252,22 +251,23 @@ class CloudFormationBuilder:
         file.close()
 
         # Write tag string to file for CLI stack operations
-        print('Saving Tag File: {tags_filename}'.format(tags_filename=tags_filename))
+        if tags_filename is not None:
+            print('Saving Tag File: {tags_filename}'.format(tags_filename=tags_filename))
 
-        tags = [
-            {'Key': 'Created', 'Value': str(created)},
-            {'Key': 'Account', 'Value': str(aws_account_id)},
-            {'Key': 'Region', 'Value': aws_default_region},
-            {'Key': 'AuthorName', 'Value': template['author_name']},
-            {'Key': 'AuthorEmail', 'Value': template['author_email']},
-            {'Key': 'Category', 'Value': service_definition},
-            {'Key': 'Environment', 'Value': environment},
-            {'Key': 'Project', 'Value': project}
-        ]
+            tags = [
+                {'Key': 'Created', 'Value': str(created)},
+                {'Key': 'Account', 'Value': str(aws_account_id)},
+                {'Key': 'Region', 'Value': aws_default_region},
+                {'Key': 'AuthorName', 'Value': template['author_name']},
+                {'Key': 'AuthorEmail', 'Value': template['author_email']},
+                {'Key': 'Category', 'Value': service_definition},
+                {'Key': 'Environment', 'Value': environment},
+                {'Key': 'Project', 'Value': project}
+            ]
 
-        file = open(tags_filename, 'wt')
-        file.write(json.dumps(tags))
-        file.close()
+            file = open(tags_filename, 'wt')
+            file.write(json.dumps(tags))
+            file.close()
 
     @staticmethod
     def render_value(template, name, value) -> str:
@@ -577,12 +577,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Build CloudFormation Template')
     parser.add_argument('--config', required=True, help="Build manifest file (JSON)")
     parser.add_argument('--path-templates', required=True, help="Output path for compiled YAML CloudFormation templates")
-    parser.add_argument('--path-tags', required=True, help="Output path for stack tags JSON file")
+    parser.add_argument('--path-tags', required=False, help="Output path for stack tags JSON file")
     parser.add_argument('--path-upload-scripts', required=False, help="Output path for stack tags JSON file")
     args = parser.parse_args()
 
     os.makedirs(args.path_templates, exist_ok=True)
-    os.makedirs(args.path_tags, exist_ok=True)
+
+    if args.path_tags is not None:
+        os.makedirs(args.path_tags, exist_ok=True)
 
     if args.path_upload_scripts is not None:
         os.makedirs(args.path_upload_scripts, exist_ok=True)
@@ -638,12 +640,6 @@ if __name__ == '__main__':
                     environment_id=str(environment_id).title(),
                     basename=basename
                 )
-                tags_filename = "{path}/{project_id}{environment_id}{basename}.tags.json".format(
-                    path=args.path_tags,
-                    project_id=str(project_id).title(),
-                    environment_id=str(environment_id).title(),
-                    basename=basename
-                )
 
                 # Generate template for this environment
                 print('Building CloudFormation Template')
@@ -655,7 +651,18 @@ if __name__ == '__main__':
                 print('Harness Service Definition:   {service_definition}'.format(service_definition=environment['ServiceDefinition']))
                 print('Template Configuration File:  {template_filename}'.format(template_filename=template_filename))
                 print('Compiled Template Filename:   {output_filename}'.format(output_filename=output_filename))
-                print('Compiled Tag Filename:        {tags_filename}'.format(tags_filename=tags_filename))
+
+                if args.path_tags is not None:
+                    tags_filename = "{path}/{project_id}{environment_id}{basename}.tags.json".format(
+                        path=args.path_tags,
+                        project_id=str(project_id).title(),
+                        environment_id=str(environment_id).title(),
+                        basename=basename
+                    )
+                    print('Compiled Tag Filename:        {tags_filename}'.format(tags_filename=tags_filename))
+                else:
+                    tags_filename = None
+
                 print('')
 
                 CloudFormationBuilder.generate(
