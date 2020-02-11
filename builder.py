@@ -677,13 +677,13 @@ if __name__ == '__main__':
                 )
 
                 build_filename = os.path.basename(output_filename)
-                bucket_filename = "s3://artifacts.{project_id}.{service_id}.{environment_id}.eonx.com/Artifacts/{project_id_upper}/{service_id_upper}/{environment_id_upper}/{timestamp}/{build_filename}".format(
+                bucket_filename = "s3://artifacts.{project_id}.{service_id}.{environment_id}.eonx.com/Artifacts/{project_id_ref}/{service_id_ref}/{environment_id_ref}/{timestamp}/{build_filename}".format(
                     project_id=CloudFormationBuilder.to_snake(project_id),
-                    project_id_upper=CloudFormationBuilder.to_aws_ref(name=project_id),
+                    project_id_ref=CloudFormationBuilder.to_aws_ref(name=project_id),
                     service_id=CloudFormationBuilder.to_snake(service_id),
-                    service_id_upper=CloudFormationBuilder.to_aws_ref(name=service_id),
+                    service_id_ref=CloudFormationBuilder.to_aws_ref(name=service_id),
                     environment_id=CloudFormationBuilder.to_snake(environment_id),
-                    environment_id_upper=CloudFormationBuilder.to_aws_ref(name=environment_id),
+                    environment_id_ref=CloudFormationBuilder.to_aws_ref(name=environment_id),
                     build_filename=build_filename,
                     timestamp=timestamp_deploy
                 )
@@ -696,21 +696,21 @@ if __name__ == '__main__':
 
                 template_count += 1
 
-            bucket_path = "s3://artifacts.{project_id}.{service_id}.{environment_id}.eonx.com/Artifacts/{project_id_upper}/{service_id_upper}/{environment_id_upper}/{timestamp}".format(
+            bucket_path = "s3://artifacts.{project_id}.{service_id}.{environment_id}.eonx.com/Artifacts/{project_id_ref}/{service_id_ref}/{environment_id_ref}/{timestamp}".format(
                 project_id=CloudFormationBuilder.to_snake(project_id),
-                project_id_upper=CloudFormationBuilder.to_aws_ref(name=project_id),
+                project_id_ref=CloudFormationBuilder.to_aws_ref(name=project_id),
                 service_id=CloudFormationBuilder.to_snake(service_id),
-                service_id_upper=CloudFormationBuilder.to_aws_ref(name=service_id),
+                service_id_ref=CloudFormationBuilder.to_aws_ref(name=service_id),
                 environment_id=CloudFormationBuilder.to_snake(environment_id),
-                environment_id_upper=CloudFormationBuilder.to_aws_ref(name=environment_id),
+                environment_id_ref=CloudFormationBuilder.to_aws_ref(name=environment_id),
                 timestamp=timestamp_deploy
             )
 
-            build_script_filename = "{path}/Build{project_id_upper}{service_id_upper}{environment_id_upper}.sh".format(
+            build_script_filename = "{path}/Build{project_id_ref}{service_id_ref}{environment_id_ref}.sh".format(
                 path=args.path_templates,
-                project_id_upper=CloudFormationBuilder.to_aws_ref(name=project_id),
-                service_id_upper=CloudFormationBuilder.to_aws_ref(name=service_id),
-                environment_id_upper=CloudFormationBuilder.to_aws_ref(name=environment_id)
+                project_id_ref=CloudFormationBuilder.to_aws_ref(name=project_id),
+                service_id_ref=CloudFormationBuilder.to_aws_ref(name=service_id),
+                environment_id_ref=CloudFormationBuilder.to_aws_ref(name=environment_id)
             )
 
             build_script_file = open(build_script_filename, 'wt')
@@ -723,8 +723,8 @@ if __name__ == '__main__':
 
             # Add this environment to the upload script
             if args.path_upload_scripts is not None:
-                upload_script += 'export AWS_ACCESS_KEY_ID="${{{environment_id_upper}_AWS_ACCESS_KEY_ID}}"\n'.format(environment_id_upper=str(environment_id).upper())
-                upload_script += 'export AWS_SECRET_ACCESS_KEY="${{{environment_id_upper}_AWS_SECRET_ACCESS_KEY}}"\n'.format(environment_id_upper=str(environment_id).upper())
+                upload_script += 'export AWS_ACCESS_KEY_ID="${{{environment_id_ref}_AWS_ACCESS_KEY_ID}}"\n'.format(environment_id_ref=str(environment_id).upper())
+                upload_script += 'export AWS_SECRET_ACCESS_KEY="${{{environment_id_ref}_AWS_SECRET_ACCESS_KEY}}"\n'.format(environment_id_ref=str(environment_id).upper())
                 upload_script += 'export AWS_DEFAULT_REGION="{aws_default_region}"\n\n'.format(aws_default_region=environment['AwsDefaultRegion'])
 
                 upload_script += "echo Uploading to S3...\n"
@@ -754,27 +754,27 @@ if __name__ == '__main__':
                                 service_id=CloudFormationBuilder.to_snake(service_id),
                                 environment_id=CloudFormationBuilder.to_snake(environment_id)
                             ),
-                            "IAM_ROLE_ARN": "arn:aws:iam::{aws_account_id}:role/{project_id_upper}{environment_id_upper}{service_id_upper}DelegateIamRole".format(
+                            "IAM_ROLE_ARN": "arn:aws:iam::{aws_account_id}:role/{project_id_ref}{environment_id_ref}{service_id_ref}DelegateIamRole".format(
                                 aws_account_id=environment['AwsAccountId'],
-                                project_id_upper=CloudFormationBuilder.to_aws_ref(name=project_id),
-                                service_id_upper=CloudFormationBuilder.to_aws_ref(name=service_id),
-                                environment_id_upper=CloudFormationBuilder.to_aws_ref(name=environment_id)
+                                project_id_ref=CloudFormationBuilder.to_aws_ref(name=project_id),
+                                service_id_ref=CloudFormationBuilder.to_aws_ref(name=service_id),
+                                environment_id_ref=CloudFormationBuilder.to_aws_ref(name=environment_id)
                             ),
                             "AWS_ACCOUNT_ID": "{aws_account_id}".format(aws_account_id=environment['AwsAccountId']),
                             "AWS_DEFAULT_REGION": "{aws_default_region}".format(aws_default_region=environment['AwsDefaultRegion']),
                             "SOURCE_S3_BUCKET": "s3://artifacts.{project_id}.{service_id}.{environment_id}.eonx.com".format(
                                 project_id=CloudFormationBuilder.to_snake(project_id),
-                                project_id_upper=CloudFormationBuilder.to_aws_ref(name=project_id),
+                                project_id_ref=CloudFormationBuilder.to_aws_ref(name=project_id),
                                 service_id=CloudFormationBuilder.to_snake(service_id),
-                                service_id_upper=CloudFormationBuilder.to_aws_ref(name=service_id),
+                                service_id_ref=CloudFormationBuilder.to_aws_ref(name=service_id),
                                 environment_id=CloudFormationBuilder.to_snake(environment_id),
-                                environment_id_upper=CloudFormationBuilder.to_aws_ref(name=environment_id),
+                                environment_id_ref=CloudFormationBuilder.to_aws_ref(name=environment_id),
                                 timestamp=timestamp_deploy
                             ),
-                            "SOURCE_S3_PATH": "Artifacts/{project_id_upper}/{service_id_upper}/{environment_id_upper}/{timestamp}".format(
-                                project_id_upper=CloudFormationBuilder.to_aws_ref(name=project_id),
-                                service_id_upper=CloudFormationBuilder.to_aws_ref(name=service_id),
-                                environment_id_upper=CloudFormationBuilder.to_aws_ref(name=environment_id),
+                            "SOURCE_S3_PATH": "Artifacts/{project_id_ref}/{service_id_ref}/{environment_id_ref}/{timestamp}".format(
+                                project_id_ref=CloudFormationBuilder.to_aws_ref(name=project_id),
+                                service_id_ref=CloudFormationBuilder.to_aws_ref(name=service_id),
+                                environment_id_ref=CloudFormationBuilder.to_aws_ref(name=environment_id),
                                 timestamp=timestamp_deploy
                             )
                         }
@@ -790,9 +790,9 @@ if __name__ == '__main__':
 
         # Write the upload script to disk
         if args.path_upload_scripts is not None:
-            upload_script_filename = "{path}/Upload{service_id_upper}.sh".format(
+            upload_script_filename = "{path}/Upload{service_id_ref}.sh".format(
                 path=args.path_upload_scripts,
-                service_id_upper=CloudFormationBuilder.to_aws_ref(name=service_id)
+                service_id_ref=CloudFormationBuilder.to_aws_ref(name=service_id)
             )
 
             upload_script_file = open(upload_script_filename, 'wt')
