@@ -571,6 +571,9 @@ if __name__ == '__main__':
         mode |= (mode & 0o444) >> 2
         os.chmod(path, mode)
 
+
+    timestamp_deploy = int(round(time.time() * 1000))
+
     parser = argparse.ArgumentParser(description='Build CloudFormation Template')
     parser.add_argument('--config', required=True, help="Build manifest file (JSON)")
     parser.add_argument('--path-templates', required=True, help="Output path for compiled YAML CloudFormation templates")
@@ -703,13 +706,69 @@ if __name__ == '__main__':
                 service_id_upper=CloudFormationBuilder.to_aws_ref(name=service_id),
                 environment_id=str(environment_id).lower(),
                 environment_id_upper=CloudFormationBuilder.to_aws_ref(name=environment_id),
-                timestamp=int(round(time.time() * 1000))
+                timestamp=timestamp_deploy
             )
 
             upload_script += "aws s3 sync {local_path} {bucket_path};\n".format(
                 local_path=args.path_templates,
                 bucket_path=bucket_path
             )
+
+            if 'WebHook' in environment:
+                webhook = environment['WebHook']
+                if 'AccountId' not in webhook:
+                    print("ERROR: Environment web hook configuration missing required 'AccountID' value")
+                    exit(1)
+                if 'ApplicationId' not in webhook:
+                    print("ERROR: Environment web hook configuration missing required 'ApplicationId' value")
+                    exit(1)
+                if 'TriggerId' not in webhook:
+                    print("ERROR: Environment web hook configuration missing required 'TriggerId' value")
+                    exit(1)
+
+                webhook_data = {
+                    'application': webhook['ApplicationId'],
+                    'parameters': {
+                        'Environment': str(environment_id).lower(),
+                        'InfraDefinition_SSH': "${project_id}-${service_id}-${environment_id}".format(
+                            project_id=str(project_id).lower(),
+                            service_id=str(service_id).lower(),
+                            environment_id=str(environment_id).lower()
+                        ),
+                        "IAM_ROLE_ARN": "arn:aws:iam::{aws_account_id}:role/{project_id_upper}{environment_id_upper}{service_id_upper}DelegateIamRole".format(
+                            aws_account_id=environment['AwsAccountId'],
+                            project_id_upper=CloudFormationBuilder.to_aws_ref(name=project_id),
+                            service_id_upper=CloudFormationBuilder.to_aws_ref(name=service_id),
+                            environment_id_upper=CloudFormationBuilder.to_aws_ref(name=environment_id)
+                        ),
+                        "AWS_ACCOUNT_ID": "{aws_account_id}".format(aws_account_id=environment['AwsAccountId']),
+                        "AWS_DEFAULT_REGION": "{aws_default_region}".format(aws_default_region=environment['AwsDefaultRegion']),
+                        "SOURCE_S3_BUCKET": "s3://artifacts.{project_id}.{service_id}.{environment_id}.eonx.com".format(
+                            project_id=str(project_id).lower(),
+                            project_id_upper=CloudFormationBuilder.to_aws_ref(name=project_id),
+                            service_id=str(service_id).lower(),
+                            service_id_upper=CloudFormationBuilder.to_aws_ref(name=service_id),
+                            environment_id=str(environment_id).lower(),
+                            environment_id_upper=CloudFormationBuilder.to_aws_ref(name=environment_id),
+                            timestamp=timestamp_deploy
+                        ),
+                        "SOURCE_S3_PATH": "Artifacts/{project_id_upper}/{service_id_upper}/{environment_id_upper}/{timestamp}".format(
+                            project_id_upper=CloudFormationBuilder.to_aws_ref(name=project_id),
+                            service_id_upper=CloudFormationBuilder.to_aws_ref(name=service_id),
+                            environment_id_upper=CloudFormationBuilder.to_aws_ref(name=environment_id),
+                            timestamp=timestamp_deploy
+                        )
+                    }
+                }
+
+                webhook_data_json = json.dumps(webhook_data)
+                upload_script += "\ncurl -X POST -H 'content-type: application/json' --url https://app.harness.io/gateway/api/webhooks/{webhook_trigger_id}?accountId={webhook_account_id} {webhook_data_json}\n\n".format(
+                    webhook_trigger_id=webhook['TriggerId'],
+                    webhook_account_id=webhook['AccountId'],
+                    webhook_application_id=webhook['ApplicationId'],
+                    webhook_data_json = webhook_data_json
+                )
+
 
         if args.path_upload_script is not None:
             upload_script_filename = "{path}/upload-{service_id}.sh".format(
