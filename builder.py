@@ -770,7 +770,7 @@ if __name__ == '__main__':
                     }
 
                     webhook_data_json = json.dumps(webhook_data)
-                    upload_script += "\n# Trigger Harness Webhook\ncurl -X POST \\\n\t-H 'content-type: application/json' \\\n\t--url \"https://app.harness.io/gateway/api/webhooks/{webhook_trigger_id}?accountId={webhook_account_id}\" \\\n\t-d \"{webhook_data_json}\"\n\n".format(
+                    upload_script += "\n# Trigger Harness Webhook\ncurl -X POST \\\uploadn\t-H 'content-type: application/json' \\\n\t--url \"https://app.harness.io/gateway/api/webhooks/{webhook_trigger_id}?accountId={webhook_account_id}\" \\\n\t-d \"{webhook_data_json}\"\n\n".format(
                         webhook_trigger_id=webhook['TriggerId'],
                         webhook_account_id=webhook['AccountId'],
                         webhook_application_id=webhook['ApplicationId'],
@@ -779,10 +779,9 @@ if __name__ == '__main__':
 
         # Write the upload script to disk
         if args.path_upload_script is not None:
-            upload_script_filename = "{path}/upload-{service_id}.sh".format(
+            upload_script_filename = "{path}/Upload{service_id_upper}.sh".format(
                 path=args.path_upload_script,
-                project_id=str(project_id).lower(),
-                service_id=str(service_id).lower()
+                service_id_upper=CloudFormationBuilder.to_aws_ref(name=service_id)
             )
 
             upload_script_file = open(upload_script_filename, 'wt')
