@@ -6,6 +6,8 @@ import json
 import os
 import re
 import sys
+import time
+
 import yaml
 
 from datetime import datetime
@@ -573,10 +575,14 @@ if __name__ == '__main__':
     parser.add_argument('--config', required=True, help="Build manifest file (JSON)")
     parser.add_argument('--path-templates', required=True, help="Output path for compiled YAML CloudFormation templates")
     parser.add_argument('--path-tags', required=True, help="Output path for stack tags JSON file")
+    parser.add_argument('--path-upload-script', required=False, help="Output path for stack tags JSON file")
     args = parser.parse_args()
 
     os.makedirs(args.path_templates, exist_ok=True)
     os.makedirs(args.path_tags, exist_ok=True)
+
+    if args.path_upload_script is not None:
+        os.makedirs(args.path_upload_script, exist_ok=True)
 
     config_file = open(args.config, 'rt')
     config = json.load(config_file)
@@ -588,7 +594,8 @@ if __name__ == '__main__':
 
     project_id = config['Project']
 
-    build_script = ""
+    build_script = "#!/usr/bin/env bash\n\n"
+    upload_script = "#!/usr/bin/env bash\n\n"
 
     if 'Services' not in config:
         print("ERROR: Build manifest missing required 'Services' value")
@@ -687,4 +694,32 @@ if __name__ == '__main__':
             build_script_file.close()
             make_executable(build_script_filename)
 
-            build_script = ''
+            build_script = "#!/usr/bin/env bash\n\n"
+
+            bucket_path = "s3://artifacts.{project_id}.{service_id}.{environment_id}.eonx.com/Artifacts/{project_id_upper}/{service_id_upper}/{environment_id_upper}/{timestamp}".format(
+                project_id=str(project_id).lower(),
+                project_id_upper=CloudFormationBuilder.to_aws_ref(name=project_id),
+                service_id=str(service_id).lower(),
+                service_id_upper=CloudFormationBuilder.to_aws_ref(name=service_id),
+                environment_id=str(environment_id).lower(),
+                environment_id_upper=CloudFormationBuilder.to_aws_ref(name=environment_id),
+                timestamp=int(round(time.time() * 1000))
+            )
+
+            upload_script += "aws s3 sync {local_path} {bucket_path};\n".format(
+                local_path=args.path_templates,
+                bucket_path=bucket_path
+            )
+
+        if args.path_upload_script is not None:
+            upload_script_filename = "{path}/upload-{service_id}.sh".format(
+                path=args.path_upload_script,
+                project_id=str(project_id).lower(),
+                service_id=str(service_id).lower()
+            )
+
+            upload_script_file = open(upload_script_filename, 'wt')
+            upload_script_file.write(upload_script)
+            upload_script_file.flush()
+            upload_script_file.close()
+            make_executable(upload_script_filename)
