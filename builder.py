@@ -724,8 +724,8 @@ if __name__ == '__main__':
 
             # Add this environment to the upload script
             if args.path_upload_scripts is not None:
-                upload_script += 'export AWS_SECRET_ACCESS_KEY="${{{environment_id_upper}_AWS_ACCESS_KEY_ID}}"\n'.format(environment_id_upper=str(environment_id).upper())
                 upload_script += 'export AWS_ACCESS_KEY_ID="${{{environment_id_upper}_AWS_ACCESS_KEY_ID}}"\n'.format(environment_id_upper=str(environment_id).upper())
+                upload_script += 'export AWS_SECRET_ACCESS_KEY="${{{environment_id_upper}_AWS_SECRET_ACCESS_KEY}}"\n'.format(environment_id_upper=str(environment_id).upper())
                 upload_script += 'export AWS_DEFAULT_REGION="{aws_default_region}"\n\n'.format(aws_default_region=environment['AwsDefaultRegion'])
                 upload_script += "\necho Uploading to S3...\n"
                 upload_script += "aws s3 sync {local_path} {bucket_path};\n".format(
