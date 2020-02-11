@@ -613,7 +613,7 @@ if __name__ == '__main__':
         for environment_id, environment in service['Environments'].items():
             build_script = "#!/usr/bin/env bash\n\n# Download artifacts from AWS S3\n"
 
-            required_parameters = ['AwsAccountId', 'AwsDefaultRegion', 'ServiceDefinition', 'Templates', 'TemplatePath']
+            required_parameters = ['AwsAccountId', 'AwsDefaultRegion', 'Templates', 'TemplatePath']
             for parameter in required_parameters:
                 if parameter not in environment:
                     print("ERROR: Build manifest missing required 'Services.Environment.{parameter}' value".format(parameter=parameter))
@@ -646,9 +646,9 @@ if __name__ == '__main__':
                 print('')
                 print('Project:                      {project_id}'.format(project_id=project_id))
                 print('Environment:                  {environment_id}'.format(environment_id=environment_id))
+                print('Service:                      {service_id}'.format(service_id=service_id))
                 print('AWS Account ID:               {aws_account_id}'.format(aws_account_id=environment['AwsAccountId']))
                 print('AWS Region:                   {aws_default_region}'.format(aws_default_region=environment['AwsDefaultRegion']))
-                print('Harness Service Definition:   {service_definition}'.format(service_definition=environment['ServiceDefinition']))
                 print('Template Configuration File:  {template_filename}'.format(template_filename=template_filename))
                 print('Compiled Template Filename:   {output_filename}'.format(output_filename=output_filename))
 
@@ -667,22 +667,22 @@ if __name__ == '__main__':
 
                 CloudFormationBuilder.generate(
                     environment=environment_id,
-                    project=project_id,
+                    project=CloudFormationBuilder.to_snake(project_id),
                     input_filename=template_filename,
                     output_filename=output_filename,
                     tags_filename=tags_filename,
                     aws_account_id=environment['AwsAccountId'],
                     aws_default_region=environment['AwsDefaultRegion'],
-                    service_definition=environment['ServiceDefinition']
+                    service_definition=CloudFormationBuilder.to_snake(service_id)
                 )
 
                 build_filename = os.path.basename(output_filename)
                 bucket_filename = "s3://artifacts.{project_id}.{service_id}.{environment_id}.eonx.com/Artifacts/{project_id_upper}/{service_id_upper}/{environment_id_upper}/{timestamp}/{build_filename}".format(
-                    project_id=str(project_id).lower(),
+                    project_id=CloudFormationBuilder.to_snake(project_id),
                     project_id_upper=CloudFormationBuilder.to_aws_ref(name=project_id),
-                    service_id=str(service_id).lower(),
+                    service_id=CloudFormationBuilder.to_snake(service_id),
                     service_id_upper=CloudFormationBuilder.to_aws_ref(name=service_id),
-                    environment_id=str(environment_id).lower(),
+                    environment_id=CloudFormationBuilder.to_snake(environment_id),
                     environment_id_upper=CloudFormationBuilder.to_aws_ref(name=environment_id),
                     build_filename=build_filename,
                     timestamp=timestamp_deploy
@@ -697,11 +697,11 @@ if __name__ == '__main__':
                 template_count += 1
 
             bucket_path = "s3://artifacts.{project_id}.{service_id}.{environment_id}.eonx.com/Artifacts/{project_id_upper}/{service_id_upper}/{environment_id_upper}/{timestamp}".format(
-                project_id=str(project_id).lower(),
+                project_id=CloudFormationBuilder.to_snake(project_id),
                 project_id_upper=CloudFormationBuilder.to_aws_ref(name=project_id),
-                service_id=str(service_id).lower(),
+                service_id=CloudFormationBuilder.to_snake(service_id),
                 service_id_upper=CloudFormationBuilder.to_aws_ref(name=service_id),
-                environment_id=str(environment_id).lower(),
+                environment_id=CloudFormationBuilder.to_snake(environment_id),
                 environment_id_upper=CloudFormationBuilder.to_aws_ref(name=environment_id),
                 timestamp=timestamp_deploy
             )
@@ -710,8 +710,7 @@ if __name__ == '__main__':
                 path=args.path_templates,
                 project_id_upper=CloudFormationBuilder.to_aws_ref(name=project_id),
                 service_id_upper=CloudFormationBuilder.to_aws_ref(name=service_id),
-                environment_id_upper=CloudFormationBuilder.to_aws_ref(name=environment_id),
-                environment_id=str(environment_id).lower()
+                environment_id_upper=CloudFormationBuilder.to_aws_ref(name=environment_id)
             )
 
             build_script_file = open(build_script_filename, 'wt')
@@ -751,9 +750,9 @@ if __name__ == '__main__':
                         'parameters': {
                             'Environment': str(environment_id).lower(),
                             'InfraDefinition_SSH': "{project_id}-{service_id}-{environment_id}".format(
-                                project_id=str(project_id).lower(),
-                                service_id=str(service_id).lower(),
-                                environment_id=str(environment_id).lower()
+                                project_id=CloudFormationBuilder.to_snake(project_id),
+                                service_id=CloudFormationBuilder.to_snake(service_id),
+                                environment_id=CloudFormationBuilder.to_snake(environment_id)
                             ),
                             "IAM_ROLE_ARN": "arn:aws:iam::{aws_account_id}:role/{project_id_upper}{environment_id_upper}{service_id_upper}DelegateIamRole".format(
                                 aws_account_id=environment['AwsAccountId'],
@@ -764,11 +763,11 @@ if __name__ == '__main__':
                             "AWS_ACCOUNT_ID": "{aws_account_id}".format(aws_account_id=environment['AwsAccountId']),
                             "AWS_DEFAULT_REGION": "{aws_default_region}".format(aws_default_region=environment['AwsDefaultRegion']),
                             "SOURCE_S3_BUCKET": "s3://artifacts.{project_id}.{service_id}.{environment_id}.eonx.com".format(
-                                project_id=str(project_id).lower(),
+                                project_id=CloudFormationBuilder.to_snake(project_id),
                                 project_id_upper=CloudFormationBuilder.to_aws_ref(name=project_id),
-                                service_id=str(service_id).lower(),
+                                service_id=CloudFormationBuilder.to_snake(service_id),
                                 service_id_upper=CloudFormationBuilder.to_aws_ref(name=service_id),
-                                environment_id=str(environment_id).lower(),
+                                environment_id=CloudFormationBuilder.to_snake(environment_id),
                                 environment_id_upper=CloudFormationBuilder.to_aws_ref(name=environment_id),
                                 timestamp=timestamp_deploy
                             ),
