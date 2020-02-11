@@ -578,14 +578,14 @@ if __name__ == '__main__':
     parser.add_argument('--config', required=True, help="Build manifest file (JSON)")
     parser.add_argument('--path-templates', required=True, help="Output path for compiled YAML CloudFormation templates")
     parser.add_argument('--path-tags', required=True, help="Output path for stack tags JSON file")
-    parser.add_argument('--path-upload-script', required=False, help="Output path for stack tags JSON file")
+    parser.add_argument('--path-upload-scripts', required=False, help="Output path for stack tags JSON file")
     args = parser.parse_args()
 
     os.makedirs(args.path_templates, exist_ok=True)
     os.makedirs(args.path_tags, exist_ok=True)
 
-    if args.path_upload_script is not None:
-        os.makedirs(args.path_upload_script, exist_ok=True)
+    if args.path_upload_scripts is not None:
+        os.makedirs(args.path_upload_scripts, exist_ok=True)
 
     config_file = open(args.config, 'rt')
     config = json.load(config_file)
@@ -716,7 +716,7 @@ if __name__ == '__main__':
             build_script = "#!/usr/bin/env bash\n\n# Download artifacts from AWS S3\n"
 
             # Add this environment to the upload script
-            if args.path_upload_script is not None:
+            if args.path_upload_scripts is not None:
                 upload_script += 'SECRET_AWS_ACCESS_KEY_ID="{environment_id_upper}_AWS_ACCESS_KEY_ID"\n'.format(environment_id_upper=str(environment_id).upper())
                 upload_script += 'SECRET_AWS_SECRET_ACCESS_KEY="{environment_id_upper}_AWS_SECRET_ACCESS_KEY"\n'.format(environment_id_upper=str(environment_id).upper())
                 upload_script += 'export AWS_SECRET_ACCESS_KEY="${!SECRET_AWS_SECRET_ACCESS_KEY}"\n'
@@ -783,9 +783,9 @@ if __name__ == '__main__':
                     )
 
         # Write the upload script to disk
-        if args.path_upload_script is not None:
+        if args.path_upload_scripts is not None:
             upload_script_filename = "{path}/Upload{service_id_upper}.sh".format(
-                path=args.path_upload_script,
+                path=args.path_upload_scripts,
                 service_id_upper=CloudFormationBuilder.to_aws_ref(name=service_id)
             )
 
