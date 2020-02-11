@@ -597,8 +597,7 @@ if __name__ == '__main__':
 
     project_id = config['Project']
 
-    build_script = "#!/usr/bin/env bash\n\n"
-    upload_script = "#!/usr/bin/env bash\n\n"
+    upload_script = "#!/usr/bin/env bash\n\n# Upload artifacts to AWS S3\n"
 
     if 'Services' not in config:
         print("ERROR: Build manifest missing required 'Services' value")
@@ -610,6 +609,8 @@ if __name__ == '__main__':
             exit(1)
 
         for environment_id, environment in service['Environments'].items():
+            build_script = "#!/usr/bin/env bash\n\n# Download artifacts from AWS S3\n"
+
             required_parameters = ['AwsAccountId', 'AwsDefaultRegion', 'ServiceDefinition', 'Templates', 'TemplatePath']
             for parameter in required_parameters:
                 if parameter not in environment:
@@ -669,11 +670,15 @@ if __name__ == '__main__':
                 )
 
                 build_filename = os.path.basename(output_filename)
-                bucket_filename = "s3://artifacts.{project_id}.{service_id}.{environment_id}.eonx.com/{build_filename}".format(
+                bucket_filename = "s3://artifacts.{project_id}.{service_id}.{environment_id}.eonx.com/Artifacts/{project_id_upper}/{service_id_upper}/{environment_id_upper}/{timestamp}/{build_filename}".format(
                     project_id=str(project_id).lower(),
+                    project_id_upper=CloudFormationBuilder.to_aws_ref(name=project_id),
                     service_id=str(service_id).lower(),
+                    service_id_upper=CloudFormationBuilder.to_aws_ref(name=service_id),
                     environment_id=str(environment_id).lower(),
-                    build_filename=build_filename
+                    environment_id_upper=CloudFormationBuilder.to_aws_ref(name=environment_id),
+                    build_filename=build_filename,
+                    timestamp=timestamp_deploy
                 )
 
                 build_script += "aws s3 cp {bucket_filename} {template_count:03d}.{build_filename};\n".format(
@@ -683,21 +688,6 @@ if __name__ == '__main__':
                 )
 
                 template_count += 1
-
-            build_script_filename = "{path}/build-{project_id}-{service_id}-{environment_id}.sh".format(
-                path=args.path_templates,
-                project_id=str(project_id).lower(),
-                service_id=str(service_id).lower(),
-                environment_id=str(environment_id).lower()
-            )
-
-            build_script_file = open(build_script_filename, 'wt')
-            build_script_file.write(build_script)
-            build_script_file.flush()
-            build_script_file.close()
-            make_executable(build_script_filename)
-
-            build_script = "#!/usr/bin/env bash\n\n"
 
             bucket_path = "s3://artifacts.{project_id}.{service_id}.{environment_id}.eonx.com/Artifacts/{project_id_upper}/{service_id_upper}/{environment_id_upper}/{timestamp}".format(
                 project_id=str(project_id).lower(),
@@ -709,67 +699,85 @@ if __name__ == '__main__':
                 timestamp=timestamp_deploy
             )
 
-            upload_script += "aws s3 sync {local_path} {bucket_path};\n".format(
-                local_path=args.path_templates,
-                bucket_path=bucket_path
+            build_script_filename = "{path}/Build{project_id_upper}{service_id_upper}{environment_id_upper}.sh".format(
+                path=args.path_templates,
+                project_id_upper=CloudFormationBuilder.to_aws_ref(name=project_id),
+                service_id_upper=CloudFormationBuilder.to_aws_ref(name=service_id),
+                environment_id_upper=CloudFormationBuilder.to_aws_ref(name=environment_id),
+                environment_id=str(environment_id).lower()
             )
 
-            if 'WebHook' in environment:
-                webhook = environment['WebHook']
-                if 'AccountId' not in webhook:
-                    print("ERROR: Environment web hook configuration missing required 'AccountID' value")
-                    exit(1)
-                if 'ApplicationId' not in webhook:
-                    print("ERROR: Environment web hook configuration missing required 'ApplicationId' value")
-                    exit(1)
-                if 'TriggerId' not in webhook:
-                    print("ERROR: Environment web hook configuration missing required 'TriggerId' value")
-                    exit(1)
+            build_script_file = open(build_script_filename, 'wt')
+            build_script_file.write(build_script)
+            build_script_file.flush()
+            build_script_file.close()
+            make_executable(build_script_filename)
 
-                webhook_data = {
-                    'application': webhook['ApplicationId'],
-                    'parameters': {
-                        'Environment': str(environment_id).lower(),
-                        'InfraDefinition_SSH': "${project_id}-${service_id}-${environment_id}".format(
-                            project_id=str(project_id).lower(),
-                            service_id=str(service_id).lower(),
-                            environment_id=str(environment_id).lower()
-                        ),
-                        "IAM_ROLE_ARN": "arn:aws:iam::{aws_account_id}:role/{project_id_upper}{environment_id_upper}{service_id_upper}DelegateIamRole".format(
-                            aws_account_id=environment['AwsAccountId'],
-                            project_id_upper=CloudFormationBuilder.to_aws_ref(name=project_id),
-                            service_id_upper=CloudFormationBuilder.to_aws_ref(name=service_id),
-                            environment_id_upper=CloudFormationBuilder.to_aws_ref(name=environment_id)
-                        ),
-                        "AWS_ACCOUNT_ID": "{aws_account_id}".format(aws_account_id=environment['AwsAccountId']),
-                        "AWS_DEFAULT_REGION": "{aws_default_region}".format(aws_default_region=environment['AwsDefaultRegion']),
-                        "SOURCE_S3_BUCKET": "s3://artifacts.{project_id}.{service_id}.{environment_id}.eonx.com".format(
-                            project_id=str(project_id).lower(),
-                            project_id_upper=CloudFormationBuilder.to_aws_ref(name=project_id),
-                            service_id=str(service_id).lower(),
-                            service_id_upper=CloudFormationBuilder.to_aws_ref(name=service_id),
-                            environment_id=str(environment_id).lower(),
-                            environment_id_upper=CloudFormationBuilder.to_aws_ref(name=environment_id),
-                            timestamp=timestamp_deploy
-                        ),
-                        "SOURCE_S3_PATH": "Artifacts/{project_id_upper}/{service_id_upper}/{environment_id_upper}/{timestamp}".format(
-                            project_id_upper=CloudFormationBuilder.to_aws_ref(name=project_id),
-                            service_id_upper=CloudFormationBuilder.to_aws_ref(name=service_id),
-                            environment_id_upper=CloudFormationBuilder.to_aws_ref(name=environment_id),
-                            timestamp=timestamp_deploy
-                        )
-                    }
-                }
+            build_script = "#!/usr/bin/env bash\n\n# Download artifacts from AWS S3\n"
 
-                webhook_data_json = json.dumps(webhook_data)
-                upload_script += "\ncurl -X POST -H 'content-type: application/json' --url https://app.harness.io/gateway/api/webhooks/{webhook_trigger_id}?accountId={webhook_account_id} {webhook_data_json}\n\n".format(
-                    webhook_trigger_id=webhook['TriggerId'],
-                    webhook_account_id=webhook['AccountId'],
-                    webhook_application_id=webhook['ApplicationId'],
-                    webhook_data_json = webhook_data_json
+            # Add this environment to the upload script
+            if args.path_upload_script is not None:
+                upload_script += "aws s3 sync {local_path} {bucket_path};\n".format(
+                    local_path=args.path_templates,
+                    bucket_path=bucket_path
                 )
 
+                if 'WebHook' in environment:
+                    webhook = environment['WebHook']
+                    if 'AccountId' not in webhook:
+                        print("ERROR: Environment web hook configuration missing required 'AccountID' value")
+                        exit(1)
+                    if 'ApplicationId' not in webhook:
+                        print("ERROR: Environment web hook configuration missing required 'ApplicationId' value")
+                        exit(1)
+                    if 'TriggerId' not in webhook:
+                        print("ERROR: Environment web hook configuration missing required 'TriggerId' value")
+                        exit(1)
 
+                    webhook_data = {
+                        'application': webhook['ApplicationId'],
+                        'parameters': {
+                            'Environment': str(environment_id).lower(),
+                            'InfraDefinition_SSH': "{project_id}-{service_id}-{environment_id}".format(
+                                project_id=str(project_id).lower(),
+                                service_id=str(service_id).lower(),
+                                environment_id=str(environment_id).lower()
+                            ),
+                            "IAM_ROLE_ARN": "arn:aws:iam::{aws_account_id}:role/{project_id_upper}{environment_id_upper}{service_id_upper}DelegateIamRole".format(
+                                aws_account_id=environment['AwsAccountId'],
+                                project_id_upper=CloudFormationBuilder.to_aws_ref(name=project_id),
+                                service_id_upper=CloudFormationBuilder.to_aws_ref(name=service_id),
+                                environment_id_upper=CloudFormationBuilder.to_aws_ref(name=environment_id)
+                            ),
+                            "AWS_ACCOUNT_ID": "{aws_account_id}".format(aws_account_id=environment['AwsAccountId']),
+                            "AWS_DEFAULT_REGION": "{aws_default_region}".format(aws_default_region=environment['AwsDefaultRegion']),
+                            "SOURCE_S3_BUCKET": "s3://artifacts.{project_id}.{service_id}.{environment_id}.eonx.com".format(
+                                project_id=str(project_id).lower(),
+                                project_id_upper=CloudFormationBuilder.to_aws_ref(name=project_id),
+                                service_id=str(service_id).lower(),
+                                service_id_upper=CloudFormationBuilder.to_aws_ref(name=service_id),
+                                environment_id=str(environment_id).lower(),
+                                environment_id_upper=CloudFormationBuilder.to_aws_ref(name=environment_id),
+                                timestamp=timestamp_deploy
+                            ),
+                            "SOURCE_S3_PATH": "Artifacts/{project_id_upper}/{service_id_upper}/{environment_id_upper}/{timestamp}".format(
+                                project_id_upper=CloudFormationBuilder.to_aws_ref(name=project_id),
+                                service_id_upper=CloudFormationBuilder.to_aws_ref(name=service_id),
+                                environment_id_upper=CloudFormationBuilder.to_aws_ref(name=environment_id),
+                                timestamp=timestamp_deploy
+                            )
+                        }
+                    }
+
+                    webhook_data_json = json.dumps(webhook_data)
+                    upload_script += "\n# Trigger Harness Webhook\ncurl -X POST \\\n\t-H 'content-type: application/json' \\\n\t--url \"https://app.harness.io/gateway/api/webhooks/{webhook_trigger_id}?accountId={webhook_account_id}\" \\\n\t-d \"{webhook_data_json}\"\n\n".format(
+                        webhook_trigger_id=webhook['TriggerId'],
+                        webhook_account_id=webhook['AccountId'],
+                        webhook_application_id=webhook['ApplicationId'],
+                        webhook_data_json = webhook_data_json.replace('"', '\\"')
+                    )
+
+        # Write the upload script to disk
         if args.path_upload_script is not None:
             upload_script_filename = "{path}/upload-{service_id}.sh".format(
                 path=args.path_upload_script,
