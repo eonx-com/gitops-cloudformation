@@ -729,7 +729,6 @@ if __name__ == '__main__':
                 upload_script += 'export AWS_DEFAULT_REGION="{aws_default_region}"\n\n'.format(aws_default_region=environment['AwsDefaultRegion'])
 
                 upload_script += "echo Uploading to S3...\n"
-                upload_script += "ls -l {local_path};\n".format(local_path=args.path_templates)
                 upload_script += "aws s3 sync {local_path} {bucket_path};\n".format(
                     local_path=args.path_templates,
                     bucket_path=bucket_path
