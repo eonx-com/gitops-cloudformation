@@ -762,7 +762,7 @@ if __name__ == '__main__':
                             ),
                             "AWS_ACCOUNT_ID": "{aws_account_id}".format(aws_account_id=environment['AwsAccountId']),
                             "AWS_DEFAULT_REGION": "{aws_default_region}".format(aws_default_region=environment['AwsDefaultRegion']),
-                            "SOURCE_S3_BUCKET": "s3://artifacts.{project_id}.{service_id}.{environment_id}.eonx.com".format(
+                            "SOURCE_S3_BUCKET": "artifacts.{project_id}.{service_id}.{environment_id}.eonx.com".format(
                                 project_id=CloudFormationBuilder.to_snake(project_id),
                                 project_id_ref=CloudFormationBuilder.to_aws_ref(name=project_id),
                                 service_id=CloudFormationBuilder.to_snake(service_id),
