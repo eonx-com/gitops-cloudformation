@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import base64
 import json
 import os
@@ -11,25 +12,47 @@ from datetime import datetime
 from pprint import pprint
 
 
+# noinspection DuplicatedCode
 class CloudFormationBuilder:
     templates = {}
     environment = ''
     project = ''
 
     @staticmethod
-    def generate(input_filename, output_filename, tags_filename) -> None:
+    def generate(environment, project, input_filename, output_filename, tags_filename, aws_account_id, aws_default_region, service_definition) -> None:
         """
         Generate output template
+
+        :type environment: str
+        :param environment: Deployment environment
+        
+        :type project: str
+        :param project: Deployment environment
 
         :type input_filename: str
         :param input_filename: The input filename
 
         :type output_filename: str
         :param output_filename: The output filename
+
+        :type tags_filename: str
+        :param tags_filename: The tags filename
+
+        :type aws_account_id: str
+        :param aws_account_id: Account where stack will be deployed
+
+        :type aws_default_region: str
+        :param aws_default_region: Region where stack will be deployed
+
+        :type service_definition: str
+        :param service_definition: Harness service definition type (application/infrastructure)
         """
         # Make sure the input filename can be found
         if os.path.exists(input_filename) is False:
             raise Exception('The specified input filename ({input_filename}) does not exists'.format(input_filename=input_filename))
+
+        CloudFormationBuilder.project = project
+        CloudFormationBuilder.environment = environment
 
         # Read the input file and process into a dictionary
         file = open(input_filename, 'rt')
@@ -43,7 +66,7 @@ class CloudFormationBuilder:
                 raise Exception('Configuration file missing required "{key}" key'.format(key=key))
 
         # Make sure YAML template key contains required template configuration keys
-        required_keys = ['project', 'environment', 'description', 'category', 'author_name', 'author_email', 'account', 'region']
+        required_keys = ['description', 'author_name', 'author_email']
         for key in required_keys:
             if key not in yaml_content['template'].keys():
                 raise Exception('Configuration file missing required "template.{key}" value'.format(key=key))
@@ -79,17 +102,17 @@ class CloudFormationBuilder:
         rendered += 'Metadata:\n'
         rendered += '\n'
         rendered += '  Created: {created}\n'.format(created=created)
-        rendered += '  Account: {account}\n'.format(account=template['account'])
-        rendered += '  Region: {region}\n'.format(region=template['region'])
+        rendered += '  Account: {account}\n'.format(account=aws_account_id)
+        rendered += '  Region: {region}\n'.format(region=aws_default_region)
         rendered += '  AuthorName: {author_name}\n'.format(author_name=template['author_name'])
         rendered += '  AuthorEmail: {author_email}\n'.format(author_email=template['author_email'])
-        rendered += '  Category: {category}\n'.format(category=template['category'])
-        rendered += '  Environment: {environment}\n'.format(environment=template['environment'])
-        rendered += '  Project: {project}\n'.format(project=template['project'])
+        rendered += '  Category: {service_definition}\n'.format(service_definition=CloudFormationBuilder.to_camel(service_definition))
+        rendered += '  Environment: {environment}\n'.format(environment=CloudFormationBuilder.to_camel(environment))
+        rendered += '  Project: {project}\n'.format(project=CloudFormationBuilder.to_camel(project))
 
         if 'bucket' in template:
             rendered += '  Bucket: {bucket}\n'.format(bucket=template['bucket'])
-            
+
         # Iterate all records and record the details of items we need to create
         for record_id, record in yaml_content['records'].items():
             # Validate the record
@@ -155,8 +178,8 @@ class CloudFormationBuilder:
                             'Key': 'Name',
                             'Value': CloudFormationBuilder.to_aws_ref(
                                 name=resource_id,
-                                project=template['project'],
-                                environment=template['environment']
+                                project=project,
+                                environment=environment
                             )
                         })
 
@@ -186,14 +209,14 @@ class CloudFormationBuilder:
                 if '_name' in output:
                     output_id = CloudFormationBuilder.to_aws_ref(
                         name=output['_name'],
-                        environment=template['environment'],
-                        project=template['project']
+                        environment=environment,
+                        project=project
                     )
                 else:
                     output_id = CloudFormationBuilder.to_aws_ref(
                         name=key,
-                        environment=template['environment'],
-                        project=template['project']
+                        environment=environment,
+                        project=project
                     )
 
                 print('\t- {output_id}'.format(output_id=output_id))
@@ -231,13 +254,13 @@ class CloudFormationBuilder:
 
         tags = [
             {'Key': 'Created', 'Value': str(created)},
-            {'Key': 'Account', 'Value': str(template['account'])},
-            {'Key': 'Region', 'Value': template['region']},
+            {'Key': 'Account', 'Value': str(aws_account_id)},
+            {'Key': 'Region', 'Value': aws_default_region},
             {'Key': 'AuthorName', 'Value': template['author_name']},
             {'Key': 'AuthorEmail', 'Value': template['author_email']},
-            {'Key': 'Category', 'Value': template['category']},
-            {'Key': 'Environment', 'Value': template['environment']},
-            {'Key': 'Project', 'Value': template['project']}
+            {'Key': 'Category', 'Value': service_definition},
+            {'Key': 'Environment', 'Value': environment},
+            {'Key': 'Project', 'Value': project}
         ]
 
         file = open(tags_filename, 'wt')
@@ -248,8 +271,8 @@ class CloudFormationBuilder:
     def render_value(template, name, value) -> str:
         parameter_aws_ref = CloudFormationBuilder.to_aws_ref(
             name=name,
-            project=template['project'],
-            environment=template['environment']
+            project=CloudFormationBuilder.project,
+            environment=CloudFormationBuilder.environment
         )
         print('\t - {parameter_aws_ref}'.format(parameter_aws_ref=parameter_aws_ref))
 
@@ -315,8 +338,8 @@ class CloudFormationBuilder:
                 rendered += '!Ref {output_ref}'.format(
                     output_ref=CloudFormationBuilder.to_aws_ref(
                         name=value['_record_id'],
-                        environment=template['environment'],
-                        project=template['project']
+                        environment=CloudFormationBuilder.environment,
+                        project=CloudFormationBuilder.project
                     )
                 )
             if value_type.lower() == 'ref':
@@ -324,8 +347,8 @@ class CloudFormationBuilder:
                 rendered += '!Ref {id}'.format(
                     id=CloudFormationBuilder.to_aws_ref(
                         name=value['_id'],
-                        project=template['project'],
-                        environment=template['environment']
+                        project=CloudFormationBuilder.project,
+                        environment=CloudFormationBuilder.environment
                     )
                 )
             elif value_type.lower() == 'depends-on':
@@ -333,8 +356,8 @@ class CloudFormationBuilder:
                 rendered += '{id}'.format(
                     id=CloudFormationBuilder.to_aws_ref(
                         name=value['_id'],
-                        project=template['project'],
-                        environment=template['environment']
+                        project=CloudFormationBuilder.project,
+                        environment=CloudFormationBuilder.environment
                     )
                 )
             elif value_type.lower() == 'origin_access_identity_id':
@@ -349,23 +372,23 @@ class CloudFormationBuilder:
                     indent=indent,
                     id=CloudFormationBuilder.to_aws_ref(
                         name=value['_id'],
-                        project=template['project'],
-                        environment=template['environment']
+                        project=CloudFormationBuilder.project,
+                        environment=CloudFormationBuilder.environment
                     )
                 )
             elif value_type.lower() == 'camel-prefixed':
                 # ProjectEnvironmentXXX prefixed name
                 rendered += CloudFormationBuilder.to_aws_ref(
                     name=value['_value'],
-                    project=template['project'],
-                    environment=template['environment']
+                    project=CloudFormationBuilder.project,
+                    environment=CloudFormationBuilder.environment
                 )
             elif value_type.lower() == 'snake-prefixed':
                 # project-environment-xxx prefixed name
                 rendered += CloudFormationBuilder.to_snake(CloudFormationBuilder.to_aws_ref(
                     name=value['_value'],
-                    project=template['project'],
-                    environment=template['environment']
+                    project=CloudFormationBuilder.project,
+                    environment=CloudFormationBuilder.environment
                 ))
             elif value_type.lower() == 'base64':
                 # Base64 function call
@@ -381,8 +404,8 @@ class CloudFormationBuilder:
                 rendered += '!GetAtt {id}.{attribute}'.format(
                     id=CloudFormationBuilder.to_aws_ref(
                         name=value['_id'],
-                        project=template['project'],
-                        environment=template['environment']
+                        project=CloudFormationBuilder.project,
+                        environment=CloudFormationBuilder.environment
                     ),
                     attribute=value['_attribute']
                 )
@@ -390,8 +413,8 @@ class CloudFormationBuilder:
                 rendered += '!ImportValue {id}'.format(
                     id=CloudFormationBuilder.to_aws_ref(
                         name=value['_id'],
-                        project=template['project'],
-                        environment=template['environment']
+                        project=CloudFormationBuilder.project,
+                        environment=CloudFormationBuilder.environment
                     )
                 )
         else:
@@ -496,8 +519,8 @@ class CloudFormationBuilder:
             name = name.replace('-', ' ').replace('_', ' ').title().replace(' ', '')
 
         return "{project}{environment}{name}".format(
-            environment=environment_ref.replace('-', ' ').replace('_', ' ').title().replace(' ', ''),
             project=project_ref.replace('-', ' ').replace('_', ' ').title().replace(' ', ''),
+            environment=environment_ref.replace('-', ' ').replace('_', ' ').title().replace(' ', ''),
             name=name
         )
 
@@ -540,4 +563,88 @@ class CloudFormationBuilder:
 
 
 if __name__ == '__main__':
-    CloudFormationBuilder.generate(input_filename=sys.argv[1], output_filename=sys.argv[2], tags_filename=sys.argv[3])
+
+    parser = argparse.ArgumentParser(description='Build CloudFormation Template')
+    parser.add_argument('--config', required=True, help="Build manifest file (JSON)")
+    parser.add_argument('--path-templates', required=True, help="Output path for compiled YAML CloudFormation templates")
+    parser.add_argument('--path-tags', required=True, help="Output path for stack tags JSON file")
+    args = parser.parse_args()
+
+    os.makedirs(args.path_templates, exist_ok=True)
+    os.makedirs(args.path_tags, exist_ok=True)
+
+    config_file = open(args.config, 'rt')
+    config = json.load(config_file)
+    config_file.close()
+
+    if 'Project' not in config:
+        print("ERROR: Build manifest missing required 'Project' value")
+        exit(1)
+
+    project_id = config['Project']
+
+    if 'Services' not in config:
+        print("ERROR: Build manifest missing required 'Services' value")
+        exit(1)
+
+    for service_id, service in config['Services'].items():
+        if 'Environments' not in service:
+            print("ERROR: Build manifest missing required 'Services.Environments' value")
+            exit(1)
+
+        for environment_id, environment in service['Environments'].items():
+            required_parameters = ['AwsAccountId', 'AwsDefaultRegion', 'ServiceDefinition', 'Templates', 'TemplatePath']
+            for parameter in required_parameters:
+                if parameter not in environment:
+                    print("ERROR: Build manifest missing required 'Services.Environment.{parameter}' value".format(parameter=parameter))
+                    exit(1)
+
+            for template in environment['Templates']:
+
+                template_filename = "{template_path}/{template}".format(
+                    template_path=environment['TemplatePath'],
+                    template=template
+                )
+
+                if os.path.exists(template_filename) is False:
+                    print("ERROR: Template file specified in build manifest ({template_filename}) not found".format(template_filename=template_filename))
+                    exit(1)
+
+                basename = os.path.splitext(os.path.basename(template))[0]
+
+                output_filename = "{path}/{project_id}{environment_id}{basename}.yml".format(
+                    path=args.path_templates,
+                    project_id=str(project_id).title(),
+                    environment_id=str(environment_id).title(),
+                    basename=basename
+                )
+                tags_filename = "{path}/{project_id}{environment_id}{basename}.tags.json".format(
+                    path=args.path_tags,
+                    project_id=str(project_id).title(),
+                    environment_id=str(environment_id).title(),
+                    basename=basename
+                )
+
+                # Generate template for this environment
+                print('Building CloudFormation Template')
+                print('')
+                print('Project:                      {project_id}'.format(project_id=project_id))
+                print('Environment:                  {environment_id}'.format(environment_id=environment_id))
+                print('AWS Account ID:               {aws_account_id}'.format(aws_account_id=environment['AwsAccountId']))
+                print('AWS Region:                   {aws_default_region}'.format(aws_default_region=environment['AwsDefaultRegion']))
+                print('Harness Service Definition:   {service_definition}'.format(service_definition=environment['ServiceDefinition']))
+                print('Template Configuration File:  {template_filename}'.format(template_filename=template_filename))
+                print('Compiled Template Filename:   {output_filename}'.format(output_filename=output_filename))
+                print('Compiled Tag Filename:        {tags_filename}'.format(tags_filename=tags_filename))
+                print('')
+
+                CloudFormationBuilder.generate(
+                    environment=environment_id,
+                    project=project_id,
+                    input_filename=template_filename,
+                    output_filename=output_filename,
+                    tags_filename=tags_filename,
+                    aws_account_id=environment['AwsAccountId'],
+                    aws_default_region=environment['AwsDefaultRegion'],
+                    service_definition=environment['ServiceDefinition']
+                )

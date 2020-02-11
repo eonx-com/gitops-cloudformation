@@ -22,22 +22,33 @@
 
 #### Usage
 
-`python3 CloudFormationBuilder.py [INPUT_FILENAME] [OUTPUT_FILENAME]`
+`python3 CloudFormationBuilder.py --config=FILENAME.YML --path-tags=TAGS_PATH --path-templates=TEMPLATES_PATH`
 
 #### Parameters
 
-* INPUT_FILENAME
+* --config
 
   Full path and filename to the configuration YAML file to be processed
-  
-* OUTPUT_FILENAME
 
-  Full path and filename to which the CloudFormation YAML template should be rendered
+* --path-templates
+
+  Path where the compiled CloudFormation YML files will be saved
+  
+* --path-tags
+
+  Path where JSON tag files will be saved. These are submitted along with stack deployment requests
+  and saved on the resulting AWS CloudFormation stack.
 
 #### Example Usage
 
-```bash
-cd ~/repositories/gitops-cloudformation
+The following example will consume the `build-manifest.json` file in the current directory and
+output the JSON tag files into a subfolder called `./OutputTags` and the compiled CloudFormation
+templates into the path `./OutputTemplates`
 
-python3 CloudFormationBuilder.py ./Config/Dev/S3/EonxComBucket.yml ./Ouptut/Dev/S3/EonxComBucket.yml
+```bash
+builder.py \
+    --config=./build-manifest.json \
+    --path-tags=./OutputTags \
+    --path-templates=./OutputTemplates
 ```
+
