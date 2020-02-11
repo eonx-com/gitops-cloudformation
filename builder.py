@@ -724,11 +724,10 @@ if __name__ == '__main__':
 
             # Add this environment to the upload script
             if args.path_upload_scripts is not None:
-                upload_script += 'SECRET_AWS_ACCESS_KEY_ID="{environment_id_upper}_AWS_ACCESS_KEY_ID"\n'.format(environment_id_upper=str(environment_id).upper())
-                upload_script += 'SECRET_AWS_SECRET_ACCESS_KEY="{environment_id_upper}_AWS_SECRET_ACCESS_KEY"\n'.format(environment_id_upper=str(environment_id).upper())
-                upload_script += 'export AWS_SECRET_ACCESS_KEY="${!SECRET_AWS_SECRET_ACCESS_KEY}"\n'
-                upload_script += 'export AWS_ACCESS_KEY_ID="${!SECRET_AWS_ACCESS_KEY_ID}"\n'
-                upload_script += 'export AWS_DEFAULT_REGION="{aws_default_region}"\n'.format(aws_default_region=environment['AwsDefaultRegion'])
+                upload_script += 'export AWS_SECRET_ACCESS_KEY="${{{environment_id_upper}_AWS_ACCESS_KEY_ID}}"\n'.format(environment_id_upper=str(environment_id).upper())
+                upload_script += 'export AWS_ACCESS_KEY_ID="${{{environment_id_upper}_AWS_SECRET_ACCESS_KEY}}"\n'.format(environment_id_upper=str(environment_id).upper())
+                upload_script += 'export AWS_DEFAULT_REGION="{aws_default_region}"\n\n'.format(aws_default_region=environment['AwsDefaultRegion'])
+                upload_script += "\necho Uploading to S3...\n"
                 upload_script += "aws s3 sync {local_path} {bucket_path};\n".format(
                     local_path=args.path_templates,
                     bucket_path=bucket_path
@@ -782,7 +781,7 @@ if __name__ == '__main__':
                     }
 
                     webhook_data_json = json.dumps(webhook_data)
-                    upload_script += '\n# Trigger Harness Webhook\ncurl -X POST\\\n\t-H "content-type: application/json" \\\n\t--url "https://app.harness.io/gateway/api/webhooks/{webhook_trigger_id}?accountId={webhook_account_id}" \\\n\t-d "{webhook_data_json}"\n\n'.format(
+                    upload_script += '\necho Triggering Harness Webhook\ncurl -X POST\\\n\t-H "content-type: application/json" \\\n\t--url "https://app.harness.io/gateway/api/webhooks/{webhook_trigger_id}?accountId={webhook_account_id}" \\\n\t-d "{webhook_data_json}"\n\n'.format(
                         webhook_trigger_id=webhook['TriggerId'],
                         webhook_account_id=webhook['AccountId'],
                         webhook_application_id=webhook['ApplicationId'],
