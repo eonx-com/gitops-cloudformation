@@ -564,6 +564,11 @@ class CloudFormationBuilder:
 
 if __name__ == '__main__':
 
+    def make_executable(path):
+        mode = os.stat(path).st_mode
+        mode |= (mode & 0o444) >> 2
+        os.chmod(path, mode)
+
     parser = argparse.ArgumentParser(description='Build CloudFormation Template')
     parser.add_argument('--config', required=True, help="Build manifest file (JSON)")
     parser.add_argument('--path-templates', required=True, help="Output path for compiled YAML CloudFormation templates")
@@ -583,6 +588,8 @@ if __name__ == '__main__':
 
     project_id = config['Project']
 
+    build_script = ""
+
     if 'Services' not in config:
         print("ERROR: Build manifest missing required 'Services' value")
         exit(1)
@@ -598,6 +605,8 @@ if __name__ == '__main__':
                 if parameter not in environment:
                     print("ERROR: Build manifest missing required 'Services.Environment.{parameter}' value".format(parameter=parameter))
                     exit(1)
+
+            template_count = 1
 
             for template in environment['Templates']:
 
@@ -648,3 +657,34 @@ if __name__ == '__main__':
                     aws_default_region=environment['AwsDefaultRegion'],
                     service_definition=environment['ServiceDefinition']
                 )
+
+                build_filename = os.path.basename(output_filename)
+                bucket_filename = "s3://artifacts.{project_id}.{service_id}.{environment_id}.eonx.com/{build_filename}".format(
+                    project_id=str(project_id).lower(),
+                    service_id=str(service_id).lower(),
+                    environment_id=str(environment_id).lower(),
+                    build_filename=build_filename
+                )
+
+                build_script += "aws s3 cp {bucket_filename} {template_count:03d}.{build_filename};\n".format(
+                    template_count=template_count,
+                    bucket_filename=bucket_filename,
+                    build_filename=build_filename
+                )
+
+                template_count += 1
+
+            build_script_filename = "{path}/build-{project_id}-{service_id}-{environment_id}.sh".format(
+                path=args.path_templates,
+                project_id=str(project_id).lower(),
+                service_id=str(service_id).lower(),
+                environment_id=str(environment_id).lower()
+            )
+
+            build_script_file = open(build_script_filename, 'wt')
+            build_script_file.write(build_script)
+            build_script_file.flush()
+            build_script_file.close()
+            make_executable(build_script_filename)
+
+            build_script = ''
