@@ -688,7 +688,7 @@ if __name__ == '__main__':
                     timestamp=timestamp_deploy
                 )
 
-                build_script += "aws s3 cp {bucket_filename} {template_count:03d}.{build_filename};\n".format(
+                build_script += "aws s3 cp {bucket_filename} {template_count:03d}.{build_filename} --quiet --no-progress;\n".format(
                     template_count=template_count,
                     bucket_filename=bucket_filename,
                     build_filename=build_filename
