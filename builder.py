@@ -754,7 +754,7 @@ if __name__ == '__main__':
                                 service_id=CloudFormationBuilder.to_snake(service_id),
                                 environment_id=CloudFormationBuilder.to_snake(environment_id)
                             ),
-                            "IAM_ROLE_ARN": "arn:aws:iam::{aws_account_id}:role/{project_id_ref}{environment_id_ref}{service_id_ref}DelegateIamRole".format(
+                            "IAM_ROLE_ARN": "arn:aws:iam::{aws_account_id}:role/{project_id_ref}{environment_id_ref}ApplicationDelegateIamRole".format(
                                 aws_account_id=environment['AwsAccountId'],
                                 project_id_ref=CloudFormationBuilder.to_aws_ref(name=project_id),
                                 service_id_ref=CloudFormationBuilder.to_aws_ref(name=service_id),
