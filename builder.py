@@ -447,8 +447,7 @@ class CloudFormationBuilder:
                     join_string=value['_join_string']
                 )
 
-                value['_indent'] = value['_indent'] + 1
-
+                count = 0
                 for item in value['_items']:
                     rendered_value = ''
                     if isinstance(item, list):
@@ -456,12 +455,16 @@ class CloudFormationBuilder:
                     elif isinstance(item, dict):
                         rendered_value = CloudFormationBuilder.render_dict(template, item, value['_indent'] + 1, newline=False)
                     else:
-                        rendered_value = ' {item}\n'.format(item=item)
+                        rendered_value = ' {item}'.format(item=item)
 
-                    rendered += '{indent}-{rendered_value}\n'.format(
+                    if count > 0:
+                        rendered += '{indent}  '.format(indent=indent)
+
+                    rendered += '-{rendered_value}\n'.format(
                         indent=indent,
                         rendered_value=rendered_value
                     )
+                    count = count + 1
 
             elif value_type.lower() == 'importvalue':
                 rendered += '!ImportValue {id}'.format(
