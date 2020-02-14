@@ -439,7 +439,15 @@ class CloudFormationBuilder:
                 else:
                     value['_indent'] = 0
 
-                rendered += '!Join\n'
+                if '_join_string' not in value.keys():
+                    value['_join_string'] = ''
+
+                rendered += '!Join\n{indent}- {join_string}'.format(
+                    indent=indent,
+                    join_string=value['_join_string']
+                )
+
+                value['_indent'] = value['_indent'] + 1
 
                 for item in value['_items']:
                     rendered_value = ''
@@ -454,6 +462,7 @@ class CloudFormationBuilder:
                         indent=indent,
                         rendered_value=rendered_value
                     )
+
             elif value_type.lower() == 'importvalue':
                 rendered += '!ImportValue {id}'.format(
                     id=CloudFormationBuilder.to_aws_ref(
