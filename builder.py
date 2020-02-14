@@ -344,6 +344,8 @@ class CloudFormationBuilder:
                         project=CloudFormationBuilder.project
                     )
                 )
+            if value_type.lower() == 'string':
+                rendered += str(value['_value'])
             if value_type.lower() == 'ref':
                 # Reference to another resource in same stack
                 rendered += '!Ref {id}'.format(
@@ -362,7 +364,7 @@ class CloudFormationBuilder:
                         environment=CloudFormationBuilder.environment
                     )
                 )
-            elif value_type.lower() == 'origin_access_identity_id':
+            elif value_type.lower() == 'importvalue_origin_access_identity_id':
                 # Depends on reference
                 indent = ''
 
@@ -370,7 +372,23 @@ class CloudFormationBuilder:
                     for i in range(0, value['_indent']):
                         indent += '  '
 
-                rendered += '!Join\n{indent}- "/"\n{indent}- - "origin-access-identity/cloudfront"\n{indent}  - !Ref {id}'.format(
+                rendered += '!Join\n{indent}- "/"\n{indent}- - "origin-access-identity/cloudfront"\n{indent}  - !ImportValue {id}'.format(
+                    indent=indent,
+                    id=CloudFormationBuilder.to_aws_ref(
+                        name=value['_id'],
+                        project=CloudFormationBuilder.project,
+                        environment=CloudFormationBuilder.environment
+                    )
+                )
+            elif value_type.lower() == 'importvalue_origin_access_identity_iam_user':
+                # Depends on reference
+                indent = ''
+
+                if '_indent' in value:
+                    for i in range(0, value['_indent']):
+                        indent += '  '
+
+                rendered += '!Join\n{indent}- "/"\n{indent}- - "arn:aws:iam::cloudfront:user"\n{indent}  - !ImportValue {id}'.format(
                     indent=indent,
                     id=CloudFormationBuilder.to_aws_ref(
                         name=value['_id'],
@@ -411,6 +429,31 @@ class CloudFormationBuilder:
                     ),
                     attribute=value['_attribute']
                 )
+            elif value_type.lower() == 'join':
+                # Depends on reference
+                indent = ''
+
+                if '_indent' in value:
+                    for i in range(0, value['_indent']):
+                        indent += '  '
+                else:
+                    value['_indent'] = 0
+
+                rendered += '!Join\n'
+
+                for item in value['_items']:
+                    rendered_value = ''
+                    if isinstance(item, list):
+                        rendered_value = CloudFormationBuilder.render_list(template, item, value['_indent'] + 1, newline=False)
+                    elif isinstance(item, dict):
+                        rendered_value = CloudFormationBuilder.render_dict(template, item, value['_indent'] + 1, newline=False)
+                    else:
+                        rendered_value = ' {item}\n'.format(item=item)
+
+                    rendered += '{indent}-{rendered_value}\n'.format(
+                        indent=indent,
+                        rendered_value=rendered_value
+                    )
             elif value_type.lower() == 'importvalue':
                 rendered += '!ImportValue {id}'.format(
                     id=CloudFormationBuilder.to_aws_ref(
