@@ -442,7 +442,7 @@ class CloudFormationBuilder:
                 if '_join_string' not in value.keys():
                     value['_join_string'] = ''
 
-                rendered += '!Join\n{indent}- {join_string}'.format(
+                rendered += '!Join\n{indent}  - "{join_string}"\n{indent}  - '.format(
                     indent=indent,
                     join_string=value['_join_string']
                 )
@@ -458,7 +458,7 @@ class CloudFormationBuilder:
                         rendered_value = ' {item}'.format(item=item)
 
                     if count > 0:
-                        rendered += '{indent}  '.format(indent=indent)
+                        rendered += '{indent}    '.format(indent=indent)
 
                     rendered += '-{rendered_value}\n'.format(
                         indent=indent,
