@@ -832,7 +832,7 @@ if __name__ == '__main__':
                                 environment_id_ref=CloudFormationBuilder.to_aws_ref(name=environment_id),
                                 timestamp=timestamp_deploy
                             ),
-                            "SOURCE_S3_PATH": "{project_id_ref}/{environment_id_ref}/{service_id_ref}/{timestamp}".format(
+                            "SOURCE_S3_PATH": "{service_id_ref}/{timestamp}".format(
                                 project_id_ref=CloudFormationBuilder.to_aws_ref(name=project_id),
                                 service_id_ref=CloudFormationBuilder.to_aws_ref(name=service_id),
                                 environment_id_ref=CloudFormationBuilder.to_aws_ref(name=environment_id),
