@@ -738,7 +738,7 @@ if __name__ == '__main__':
                 )
 
                 build_filename = os.path.basename(output_filename)
-                bucket_filename = "s3://artifacts.{project_id}.{service_id}.{environment_id}.eonx.com/Artifacts/{project_id_ref}/{service_id_ref}/{environment_id_ref}/{timestamp}/{build_filename}".format(
+                bucket_filename = "s3://artifacts.application.{project_id}.{environment_id}.eonx.com/Artifacts/{project_id_ref}/{service_id_ref}/{environment_id_ref}/{timestamp}/{build_filename}".format(
                     project_id=CloudFormationBuilder.to_snake(project_id),
                     project_id_ref=CloudFormationBuilder.to_aws_ref(name=project_id),
                     service_id=CloudFormationBuilder.to_snake(service_id),
@@ -757,7 +757,7 @@ if __name__ == '__main__':
 
                 template_count += 1
 
-            bucket_path = "s3://artifacts.{project_id}.{service_id}.{environment_id}.eonx.com/Artifacts/{project_id_ref}/{service_id_ref}/{environment_id_ref}/{timestamp}".format(
+            bucket_path = "s3://artifacts.application.{project_id}.{environment_id}.eonx.com/{project_id_ref}/{service_id_ref}/{environment_id_ref}/{timestamp}".format(
                 project_id=CloudFormationBuilder.to_snake(project_id),
                 project_id_ref=CloudFormationBuilder.to_aws_ref(name=project_id),
                 service_id=CloudFormationBuilder.to_snake(service_id),
@@ -823,7 +823,7 @@ if __name__ == '__main__':
                             ),
                             "AWS_ACCOUNT_ID": "{aws_account_id}".format(aws_account_id=environment['AwsAccountId']),
                             "AWS_DEFAULT_REGION": "{aws_default_region}".format(aws_default_region=environment['AwsDefaultRegion']),
-                            "SOURCE_S3_BUCKET": "artifacts.{project_id}.{service_id}.{environment_id}.eonx.com".format(
+                            "SOURCE_S3_BUCKET": "artifacts.application.{project_id}.{environment_id}.eonx.com".format(
                                 project_id=CloudFormationBuilder.to_snake(project_id),
                                 project_id_ref=CloudFormationBuilder.to_aws_ref(name=project_id),
                                 service_id=CloudFormationBuilder.to_snake(service_id),
@@ -832,7 +832,7 @@ if __name__ == '__main__':
                                 environment_id_ref=CloudFormationBuilder.to_aws_ref(name=environment_id),
                                 timestamp=timestamp_deploy
                             ),
-                            "SOURCE_S3_PATH": "Artifacts/{project_id_ref}/{service_id_ref}/{environment_id_ref}/{timestamp}".format(
+                            "SOURCE_S3_PATH": "{project_id_ref}/{service_id_ref}/{environment_id_ref}/{timestamp}".format(
                                 project_id_ref=CloudFormationBuilder.to_aws_ref(name=project_id),
                                 service_id_ref=CloudFormationBuilder.to_aws_ref(name=service_id),
                                 environment_id_ref=CloudFormationBuilder.to_aws_ref(name=environment_id),
