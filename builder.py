@@ -738,7 +738,7 @@ if __name__ == '__main__':
                 )
 
                 build_filename = os.path.basename(output_filename)
-                bucket_filename = "s3://artifacts.application.{project_id}.{environment_id}.eonx.com/Artifacts/{project_id_ref}/{service_id_ref}/{environment_id_ref}/{timestamp}/{build_filename}".format(
+                bucket_filename = "s3://artifacts.application.{project_id}.{environment_id}.eonx.com/Artifacts/{project_id_ref}/{service_id_ref}/{timestamp}/{build_filename}".format(
                     project_id=CloudFormationBuilder.to_snake(project_id),
                     project_id_ref=CloudFormationBuilder.to_aws_ref(name=project_id),
                     service_id=CloudFormationBuilder.to_snake(service_id),
@@ -757,7 +757,7 @@ if __name__ == '__main__':
 
                 template_count += 1
 
-            bucket_path = "s3://artifacts.application.{project_id}.{environment_id}.eonx.com/{project_id_ref}/{service_id_ref}/{environment_id_ref}/{timestamp}".format(
+            bucket_path = "s3://artifacts.application.{project_id}.{environment_id}.eonx.com/{project_id_ref}/{service_id_ref}/{timestamp}".format(
                 project_id=CloudFormationBuilder.to_snake(project_id),
                 project_id_ref=CloudFormationBuilder.to_aws_ref(name=project_id),
                 service_id=CloudFormationBuilder.to_snake(service_id),
@@ -832,7 +832,7 @@ if __name__ == '__main__':
                                 environment_id_ref=CloudFormationBuilder.to_aws_ref(name=environment_id),
                                 timestamp=timestamp_deploy
                             ),
-                            "SOURCE_S3_PATH": "{project_id_ref}/{service_id_ref}/{environment_id_ref}/{timestamp}".format(
+                            "SOURCE_S3_PATH": "{project_id_ref}/{environment_id_ref}/{service_id_ref}/{timestamp}".format(
                                 project_id_ref=CloudFormationBuilder.to_aws_ref(name=project_id),
                                 service_id_ref=CloudFormationBuilder.to_aws_ref(name=service_id),
                                 environment_id_ref=CloudFormationBuilder.to_aws_ref(name=environment_id),
