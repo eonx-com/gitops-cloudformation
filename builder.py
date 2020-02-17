@@ -5,6 +5,7 @@ import base64
 import json
 import os
 import re
+import secrets
 import sys
 import time
 
@@ -346,6 +347,11 @@ class CloudFormationBuilder:
                 )
             if value_type.lower() == 'string':
                 rendered += str(value['_value'])
+            if value_type.lower() == 'token_hex':
+                if '_length' in value:
+                    rendered += str(secrets.token_hex(value['_length']))
+                else:
+                    rendered += str(secrets.token_hex(16))
             if value_type.lower() == 'ref':
                 # Reference to another resource in same stack
                 rendered += '!Ref {id}'.format(
