@@ -757,7 +757,7 @@ if __name__ == '__main__':
 
                 template_count += 1
 
-            bucket_path = "s3://artifacts.${service_id}.{project_id}.{environment_id}.eonx.com/{service_id_ref}/{timestamp}".format(
+            bucket_path = "s3://artifacts.{service_id}.{project_id}.{environment_id}.eonx.com/{service_id_ref}/{timestamp}".format(
                 project_id=CloudFormationBuilder.to_snake(project_id),
                 project_id_ref=CloudFormationBuilder.to_aws_ref(name=project_id),
                 service_id=CloudFormationBuilder.to_snake(service_id),
