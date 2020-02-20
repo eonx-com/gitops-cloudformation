@@ -1,0 +1,190 @@
+#!/usr/bin/env bash
+
+clear;
+parameters=("$@")
+
+if [[ ${#} < 1 ]]; then
+  echo "---------------------------------------------------------------------------------------------------------------"
+  echo "Manual (But Still Lazy) CloudFormation Template Build & Deploy"
+  echo "---------------------------------------------------------------------------------------------------------------"
+  echo
+  echo "IMPORTANT NOTE: Because I am lazy it is expected that this script is run from a folder containing one or more"
+  echo "                project folder. If you're feeling energetic you can refudge my bash and make this more flexible"
+  echo
+  echo "Usage:"
+  echo
+  echo "  build-all [PROJECT] [ENVIRONMENT...1] [ENVIRONMENT...n]";
+  echo
+  echo "Parameters:"
+  echo
+  echo "  PROJECT           Name of the project folder to be build (use asterisk in quotes \"*\" to build all projects)"
+  echo "  ENVIRONMENT...x   Name of the environment (or environments) to be build. Omit this parameter to build all environments"
+  echo
+  echo "Examples:"
+  echo
+  echo "  build-all Manage Dev Uat      Build 'Manage' project in the 'Dev' and 'Uat' environments only"
+  echo "  build-all Manage              Build 'Manage' project in all environments"
+  echo "  build-all \"*\"               Build all projects and all environments"
+  echo
+fi
+
+echo "---------------------------------------------------------------------------------------------------------------"
+echo "Manual (But Still Lazy) CloudFormation Template Build & Deploy (Patent Pending)"
+echo "---------------------------------------------------------------------------------------------------------------"
+
+# Convert parameter to lowercase
+to_lower() {
+  python -c "print('${1}'.lower())";
+}
+
+# Convert parameter to UPPERCASE
+to_upper() {
+  python -c "print('${1}'.upper())";
+}
+
+# Convert parameter to TitleCase
+to_title() {
+  python -c "print('${1}'.lower().title())";
+}
+
+timestamp=$(date +%s%3N)
+
+regions=(ApSoutheast2)
+
+if [[ "${parameters[0]}" == "*" ]]; then
+  projects=()
+  for directory in ./*; do
+    projects+=("$(basename ${directory})")
+  done
+else
+  projects=(${parameters[0]} )
+fi
+
+if [[ ${#} > 1 ]]; then
+  environments=()
+  for i in $(seq 2 $((${#})) ); do
+    environments+=("${parameters[$i-1]}")
+  done
+fi
+
+artifact_id_snake=$(echo ${artifact_id} | sed 's/\([a-z0-9]\)\([A-Z0-9]\)/\1-\L\2/g');
+
+for project in "${projects[@]}"; do
+  if [[ "${parameters[0]}" == "${project}" || "${parameters[0]}" == "*" ]]; then
+    if [[ ! -d ./${project} ]]; then
+      echo "ERROR: Could not locate project folder, please ensure you are running this in the correct folder"
+      exit 1;
+    fi
+
+    if [[ -d ../Output/${project} ]]; then
+      mkdir -p ../Backups/${project}/${timestamp}
+      mv ../Output/${project} ../Backups/${timestamp}
+    fi
+
+    for region_folder in ./${project}/*; do
+      if [[ -d ${region_folder} ]]; then
+        region_folder=$(basename ${region_folder})
+        region_hyphen=$(echo ${region_folder} | sed 's/\([a-z0-9]\)\([A-Z0-9]\)/\1-\L\2/g');
+        region_hyphen=$(to_lower ${region_hyphen})
+
+        for environment in ./${project}/${region_folder}/*; do
+          if [[ -d ${environment} ]]; then
+            environment=$(basename ${environment})
+            if [[ ${#} < 2 || "${environments[@]}" =~ "${environment}" ]]; then
+              environment_lower=$(to_lower ${environment})
+              project_lower=$(to_lower ${project})
+              aws_account_id=$(cat ./${project}/${region_folder}/BuildManifest.json | jq -r ".Infrastructure.Environments[\"${environment}\"].AwsAccountId")
+              s3_bucket="artifacts.infrastructure-manual.${project_lower}.${environment_lower}.eonx.com"
+              s3_prefix="Infrastructure/${timestamp}"
+
+              echo
+              echo "Project:                ${project_lower}"
+              echo "Environment:            ${environment_lower}"
+              echo "AWS Account:            ${aws_account_id}"
+              echo "AWS Region:             ${region_hyphen}"
+              echo "Template Bucket:        ${s3_bucket}/${s3_prefix}"
+              echo
+
+              builder \
+                --config      ./${project}/${region_folder}/BuildManifest.json \
+                --path-output ../Output/${project}/${region_folder} \
+                --environment ${environment}
+
+              # Deploy to AWS
+              for stack_basename in $(find ../Output/${project}/${region_folder}/${environment}/Templates -name '*.yml' | sort --version-sort); do
+                stack_name=$(basename $stack_basename)
+                stack_name=${stack_name:4}
+                stack_name=${stack_name%.*}
+
+                echo
+                echo "Assuming IAM Role"
+                iam_role="arn:aws:iam::${aws_account_id}:role/Administrator"
+                aws-google-auth -r ${iam_role}
+
+                echo
+                echo "Deploying: ${stack_basename}"
+
+                # Make sure the manual deployment bucket exists
+
+                if aws s3 ls "s3://${s3_bucket}" --profile=sts 2>&1 | grep -q 'NoSuchBucket'; then
+                  echo "Creating template bucket: s3://${s3_bucket}"
+                  aws s3 mb "s3://${s3_bucket}" --profile=sts
+                fi
+
+                if aws s3 ls "s3://${s3_bucket}" --profile=sts 2>&1 | grep -q 'NoSuchBucket'; then
+                  echo "ERROR: Could not create S3 bucket '${s3_bucket}'"
+                  exit 1;
+                fi
+
+                tag_filename=$(echo ${stack_basename} | sed 's/\/Templates\//\/Tags\//g' | sed 's/\.yml/\.json/g')
+
+
+                # This is a load of crap- the AWS CLI craps out when a tag contains a space and is executed from a
+                # shell script-- don't even ask, idea was stolen from here:
+                # (https://stackoverflow.com/questions/59400050/how-do-you-add-spaces-for-aws-cli-cloudformation-deploy)
+
+                deploy=(aws cloudformation deploy \
+                  --no-fail-on-empty-changeset \
+                  --profile sts \
+                  --stack-name "${stack_name}" \
+                  --template-file "${stack_basename}" \
+                  --s3-bucket "${s3_bucket}" \
+                  --s3-prefix "${s3_prefix}" \
+                  --capabilities "CAPABILITY_NAMED_IAM" \
+                  --region "${region_hyphen}" \
+                  --tags $(cat ${tag_filename} | jq '.[] | (.Key + "=" + .Value)')
+                )
+                eval $(echo ${deploy[@]})
+
+                error_code="${?}"
+                if [[ "${error_code}" != "0" ]]; then
+                  echo "FATAL ERROR: AWS Deployment failed with error code ${error_code}";
+                  exit ${error_code};
+                fi
+                echo
+
+              done
+
+              echo
+              echo "---------------------------------------------------------------------------------------------------------------"
+            fi
+          fi
+        done
+      fi
+    done
+
+  fi
+done
+
+echo
+
+
+
+
+
+
+
+
+
+
+
