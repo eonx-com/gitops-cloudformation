@@ -663,8 +663,6 @@ if __name__ == '__main__':
 
     project_id = config['Project']
 
-    upload_script = "#!/usr/bin/env bash\n\n# Upload artifacts to AWS S3\n"
-
     delegate_tags = ['Application', 'Infrastructure']
 
     for delegate_tag in delegate_tags:
@@ -684,15 +682,11 @@ if __name__ == '__main__':
 
                 path_output = "{path_output}/{environment_id}".format(path_output=args.path_output, environment_id=environment_id)
                 path_tags = "{path_output}/Tags".format(path_output=path_output)
-                path_scripts = "{path_output}/Scripts".format(path_output=path_output)
                 path_templates = "{path_output}/Templates".format(path_output=path_output)
 
                 os.makedirs(path_output, exist_ok=True)
                 os.makedirs(path_tags, exist_ok=True)
-                os.makedirs(path_scripts, exist_ok=True)
                 os.makedirs(path_templates, exist_ok=True)
-
-                download_script = "#!/usr/bin/env bash\n\n# Download artifacts from AWS S3\n"
 
                 required_parameters = ['AwsAccountId', 'Templates']
                 for parameter in required_parameters:
@@ -772,11 +766,6 @@ if __name__ == '__main__':
                         timestamp=timestamp_deploy
                     )
 
-                    download_script += "aws s3 cp {bucket_filename} {build_filename} --no-progress;\n".format(
-                        bucket_filename=bucket_filename,
-                        build_filename=build_filename
-                    )
-
                     template_count += 1
 
                 bucket_path = "s3://artifacts.{service_id}.{project_id}.{environment_id}.eonx.com/{service_id_ref}/{timestamp}".format(
@@ -787,34 +776,6 @@ if __name__ == '__main__':
                     environment_id=CloudFormationBuilder.to_snake(environment_id),
                     environment_id_ref=CloudFormationBuilder.to_aws_ref(name=environment_id),
                     timestamp=timestamp_deploy
-                )
-
-                download_script_filename = "{path_scripts}/download.sh".format(
-                    path_scripts=path_scripts,
-                    project_id_ref=CloudFormationBuilder.to_aws_ref(name=project_id),
-                    service_id_ref=CloudFormationBuilder.to_aws_ref(name=delegate_tag),
-                    environment_id_ref=CloudFormationBuilder.to_aws_ref(name=environment_id)
-                )
-
-                download_script_file = open(download_script_filename, 'wt')
-                download_script_file.write(download_script)
-                download_script_file.flush()
-                download_script_file.close()
-                make_executable(download_script_filename)
-
-                download_script = "#!/usr/bin/env bash\n\n# Download artifacts from AWS S3\n"
-
-                # Add this environment to the upload script
-                upload_script += 'export AWS_ACCESS_KEY_ID="${{{environment_id_ref}_AWS_ACCESS_KEY_ID}}"\n'.format(
-                    environment_id_ref=str(environment_id).upper())
-                upload_script += 'export AWS_SECRET_ACCESS_KEY="${{{environment_id_ref}_AWS_SECRET_ACCESS_KEY}}"\n'.format(
-                    environment_id_ref=str(environment_id).upper())
-                upload_script += 'export AWS_DEFAULT_REGION="{aws_default_region}"\n\n'.format(aws_default_region=config['AwsRegion'])
-
-                upload_script += "echo Uploading to S3...\n"
-                upload_script += "aws s3 sync {local_path} {bucket_path};\n".format(
-                    local_path=path_templates,
-                    bucket_path=bucket_path
                 )
 
                 if 'WebHook' in environment:
@@ -864,22 +825,3 @@ if __name__ == '__main__':
                         }
                     }
 
-                    webhook_data_json = json.dumps(webhook_data)
-                    upload_script += '\necho Triggering Harness Webhook\ncurl -X POST\\\n\t-H "content-type: application/json" \\\n\t--url "https://app.harness.io/gateway/api/webhooks/{webhook_trigger_id}?accountId={webhook_account_id}" \\\n\t-d "{webhook_data_json}"\n\n'.format(
-                        webhook_trigger_id=webhook['TriggerId'],
-                        webhook_account_id=webhook['AccountId'],
-                        webhook_application_id=webhook['ApplicationId'],
-                        webhook_data_json=webhook_data_json.replace('"', '\\"')
-                    )
-
-                # Write the upload script to disk
-                upload_script_filename = "{path}/upload.sh".format(
-                    path=path_scripts,
-                    service_id_ref=CloudFormationBuilder.to_aws_ref(name=delegate_tag)
-                )
-
-                upload_script_file = open(upload_script_filename, 'wt')
-                upload_script_file.write(upload_script)
-                upload_script_file.flush()
-                upload_script_file.close()
-                make_executable(upload_script_filename)
