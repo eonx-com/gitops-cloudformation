@@ -49,7 +49,7 @@ to_title() {
 
 timestamp=$(date +%s%3N)
 
-regions=(ApSoutheast2)
+regions=(UsEast1 ApSoutheast2)
 
 if [[ "${parameters[0]}" == "*" ]]; then
   projects=()
@@ -81,40 +81,47 @@ for project in "${projects[@]}"; do
       mv ../Output/${project} ../Backups/${timestamp}
     fi
 
-    for region_folder in ./${project}/*; do
-      if [[ -d ${region_folder} ]]; then
-        region_folder=$(basename ${region_folder})
-        region_hyphen=$(echo ${region_folder} | sed 's/\([a-z0-9]\)\([A-Z0-9]\)/\1-\L\2/g');
-        region_hyphen=$(to_lower ${region_hyphen})
+    for region_current in "${regions[@]}"; do
+      region_current_hyphen=$(echo ${region_current} | sed 's/\([a-z0-9]\)\([A-Z0-9]\)/\1-\L\2/g');
+      region_current_hyphen=$(to_lower ${region_current_hyphen})
 
-        for environment in ./${project}/${region_folder}/*; do
-          if [[ -d ${environment} ]]; then
-            environment=$(basename ${environment})
-            if [[ ${#} < 2 || "${environments[@]}" =~ "${environment}" ]]; then
-              environment_lower=$(to_lower ${environment})
-              project_lower=$(to_lower ${project})
-              aws_account_id=$(cat ./${project}/${region_folder}/BuildManifest.json | jq -r ".Infrastructure.Environments[\"${environment}\"].AwsAccountId")
-              s3_bucket="artifacts.infrastructure-manual.${project_lower}.${environment_lower}.eonx.com"
-              s3_prefix="Infrastructure/${timestamp}"
+      for region_folder in ./${project}/*; do
+        if [[ -d ${region_folder} ]]; then
+          region_folder=$(basename ${region_folder})
+          region_hyphen=$(echo ${region_folder} | sed 's/\([a-z0-9]\)\([A-Z0-9]\)/\1-\L\2/g');
+          region_hyphen=$(to_lower ${region_hyphen})
 
-              echo
-              echo "Project:                ${project_lower}"
-              echo "Environment:            ${environment_lower}"
-              echo "AWS Account:            ${aws_account_id}"
-              echo "AWS Region:             ${region_hyphen}"
-              echo "Template Bucket:        ${s3_bucket}/${s3_prefix}"
-              echo
+          if [[ "${region_current_hyphen}" == "${region_hyphen}" ]]; then
+            for environment in ./${project}/${region_folder}/*; do
+              if [[ -d ${environment} ]]; then
+                environment=$(basename ${environment})
+                if [[ ${#} < 2 || "${environments[@]}" =~ "${environment}" ]]; then
+                  environment_lower=$(to_lower ${environment})
+                  project_lower=$(to_lower ${project})
+                  aws_account_id=$(cat ./${project}/${region_folder}/BuildManifest.json | jq -r ".Infrastructure.Environments[\"${environment}\"].AwsAccountId")
+                  s3_bucket="artifacts.infrastructure-manual.${project_lower}.${environment_lower}.eonx.com"
+                  s3_prefix="Infrastructure/${timestamp}"
 
-              builder \
-                --config      ./${project}/${region_folder}/BuildManifest.json \
-                --path-output ../Output/${project}/${region_folder} \
-                --environment ${environment}
-              echo
-              echo "---------------------------------------------------------------------------------------------------------------"
-            fi
+                  echo
+                  echo "Project:                ${project_lower}"
+                  echo "Environment:            ${environment_lower}"
+                  echo "AWS Account:            ${aws_account_id}"
+                  echo "AWS Region:             ${region_hyphen}"
+                  echo "Template Bucket:        ${s3_bucket}/${s3_prefix}"
+                  echo
+
+                  builder \
+                    --config      ./${project}/${region_folder}/BuildManifest.json \
+                    --path-output ../Output/${project}/${region_folder} \
+                    --environment ${environment}
+                  echo
+                  echo "---------------------------------------------------------------------------------------------------------------"
+                fi
+              fi
+            done
           fi
-        done
-      fi
+        fi
+      done
     done
 
   fi

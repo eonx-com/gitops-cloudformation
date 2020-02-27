@@ -643,7 +643,6 @@ if __name__ == '__main__':
         mode |= (mode & 0o444) >> 2
         os.chmod(path, mode)
 
-
     timestamp_deploy = int(round(time.time() * 1000))
 
     parser = argparse.ArgumentParser(description='Build CloudFormation Template')
@@ -723,7 +722,7 @@ if __name__ == '__main__':
 
                     output_filename = "{path}/{template_count:03d}.{project_id}{environment_id}{basename}.yml".format(
                         path=path_templates,
-                        project_id=str(project_id).title(),
+                        project_id=CloudFormationBuilder.to_camel(project_id),
                         environment_id=str(environment_id).title(),
                         template_count=template_count,
                         basename=basename
@@ -742,7 +741,7 @@ if __name__ == '__main__':
 
                     tags_filename = "{path_tags}/{template_count:03d}.{project_id}{environment_id}{basename}.json".format(
                         path_tags=path_tags,
-                        project_id=str(project_id).title(),
+                        project_id=CloudFormationBuilder.to_camel(project_id),
                         environment_id=str(environment_id).title(),
                         template_count=template_count,
                         basename=basename
