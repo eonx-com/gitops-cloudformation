@@ -15,15 +15,18 @@ from pprint import pprint
 
 # noinspection DuplicatedCode
 class CloudFormationBuilder:
-    templates = {}
-    environment = ''
-    input_filename = ''
-    project = ''
-    debug = False
+    __templates__ = {}
+    __environment__ = ''
+    __input_filename__ = ''
+    __project__ = ''
+    __debug_output__ = False
+    __references_convert_to_camel_case__ = True
+    __references_prefix_environment__ = False
+    __references_prefix_project__ = False
 
     @staticmethod
     def debug_print(message=''):
-        if CloudFormationBuilder.debug is True:
+        if CloudFormationBuilder.__debug_output__ is True:
             print(message)
 
     @staticmethod
@@ -59,8 +62,8 @@ class CloudFormationBuilder:
         if os.path.exists(input_filename) is False:
             raise Exception('The specified input filename ({input_filename}) does not exists'.format(input_filename=input_filename))
 
-        CloudFormationBuilder.input_filename = input_filename
-        CloudFormationBuilder.project = project
+        CloudFormationBuilder.__input_filename__ = input_filename
+        CloudFormationBuilder.__project__ = project
         CloudFormationBuilder.environment = environment
 
         # Read the input file and process into a dictionary
@@ -164,6 +167,7 @@ class CloudFormationBuilder:
             rendered += '# ----------------------------------------------------------------------------------------\n'
             rendered += '\n'
             rendered += 'Resources:\n'
+
             for resource_id, resource in records['resource'].items():
                 if 'tags' in resource:
                     if resource['tags'] is True:
@@ -268,7 +272,7 @@ class CloudFormationBuilder:
     def render_value(template, name, value) -> str:
         parameter_aws_ref = CloudFormationBuilder.to_aws_ref(
             name=name,
-            project=CloudFormationBuilder.project,
+            project=CloudFormationBuilder.__project__,
             environment=CloudFormationBuilder.environment
         )
         CloudFormationBuilder.debug_print('\t - {parameter_aws_ref}'.format(parameter_aws_ref=parameter_aws_ref))
@@ -336,7 +340,7 @@ class CloudFormationBuilder:
                     output_ref=CloudFormationBuilder.to_aws_ref(
                         name=value['_record_id'],
                         environment=CloudFormationBuilder.environment,
-                        project=CloudFormationBuilder.project
+                        project=CloudFormationBuilder.__project__
                     )
                 )
             if value_type.lower() == 'string':
@@ -347,7 +351,7 @@ class CloudFormationBuilder:
                 else:
                     rendered += str(secrets.token_hex(16))
             if value_type.lower() == 'include':
-                directory = os.path.dirname(CloudFormationBuilder.input_filename)
+                directory = os.path.dirname(CloudFormationBuilder.__input_filename__)
                 include_filename = value['_filename']
                 include_file = open('{directory}/{include_filename}'.format(include_filename=include_filename, directory=directory), 'rt')
                 item = yaml.full_load(include_file)
@@ -368,7 +372,7 @@ class CloudFormationBuilder:
                 rendered += '!Ref {id}'.format(
                     id=CloudFormationBuilder.to_aws_ref(
                         name=value['_id'],
-                        project=CloudFormationBuilder.project,
+                        project=CloudFormationBuilder.__project__,
                         environment=CloudFormationBuilder.environment
                     )
                 )
@@ -377,7 +381,7 @@ class CloudFormationBuilder:
                 rendered += '{id}'.format(
                     id=CloudFormationBuilder.to_aws_ref(
                         name=value['_id'],
-                        project=CloudFormationBuilder.project,
+                        project=CloudFormationBuilder.__project__,
                         environment=CloudFormationBuilder.environment
                     )
                 )
@@ -393,7 +397,7 @@ class CloudFormationBuilder:
                     indent=indent,
                     id=CloudFormationBuilder.to_aws_ref(
                         name=value['_id'],
-                        project=CloudFormationBuilder.project,
+                        project=CloudFormationBuilder.__project__,
                         environment=CloudFormationBuilder.environment
                     )
                 )
@@ -409,7 +413,7 @@ class CloudFormationBuilder:
                     indent=indent,
                     id=CloudFormationBuilder.to_aws_ref(
                         name=value['_id'],
-                        project=CloudFormationBuilder.project,
+                        project=CloudFormationBuilder.__project__,
                         environment=CloudFormationBuilder.environment
                     )
                 )
@@ -417,14 +421,14 @@ class CloudFormationBuilder:
                 # ProjectEnvironmentXXX prefixed name
                 rendered += CloudFormationBuilder.to_aws_ref(
                     name=value['_value'],
-                    project=CloudFormationBuilder.project,
+                    project=CloudFormationBuilder.__project__,
                     environment=CloudFormationBuilder.environment
                 )
             elif value_type.lower() == 'snake-prefixed':
                 # project-environment-xxx prefixed name
                 rendered += CloudFormationBuilder.to_snake(CloudFormationBuilder.to_aws_ref(
                     name=value['_value'],
-                    project=CloudFormationBuilder.project,
+                    project=CloudFormationBuilder.__project__,
                     environment=CloudFormationBuilder.environment
                 ))
             elif value_type.lower() == 'base64':
@@ -441,7 +445,7 @@ class CloudFormationBuilder:
                 rendered += '!GetAtt {id}.{attribute}'.format(
                     id=CloudFormationBuilder.to_aws_ref(
                         name=value['_id'],
-                        project=CloudFormationBuilder.project,
+                        project=CloudFormationBuilder.__project__,
                         environment=CloudFormationBuilder.environment
                     ),
                     attribute=value['_attribute']
@@ -487,7 +491,7 @@ class CloudFormationBuilder:
                 rendered += '!ImportValue {id}'.format(
                     id=CloudFormationBuilder.to_aws_ref(
                         name=value['_id'],
-                        project=CloudFormationBuilder.project,
+                        project=CloudFormationBuilder.__project__,
                         environment=CloudFormationBuilder.environment
                     )
                 )
@@ -581,20 +585,28 @@ class CloudFormationBuilder:
 
         :return: string in ProjectEnvironmentX format
         """
-        if project is None:
+        name = str(name)
+
+        if CloudFormationBuilder.__references_convert_to_camel_case__ is False:
+            return name
+
+        if project is None or CloudFormationBuilder.__references_prefix_project__ is False:
             project = ''
-        project_ref = project.title()
 
-        if environment is None:
+        if environment is None or CloudFormationBuilder.__references_prefix_environment__ is False:
             environment = ''
-        environment_ref = environment.title()
 
-        if isinstance(name, str):
+        if CloudFormationBuilder.__references_convert_to_camel_case__ is True:
+            environment_ref = environment.title().replace('-', ' ').replace('_', ' ').title().replace(' ', '')
+            project_ref = project.title().replace('-', ' ').replace('_', ' ').title().replace(' ', '')
             name = name.replace('-', ' ').replace('_', ' ').title().replace(' ', '')
+        else:
+            environment_ref = environment
+            project_ref = project
 
-        return "{project}{environment}{name}".format(
-            project=project_ref.replace('-', ' ').replace('_', ' ').title().replace(' ', ''),
-            environment=environment_ref.replace('-', ' ').replace('_', ' ').title().replace(' ', ''),
+        return "{project_ref}{environment_ref}{name}".format(
+            project_ref=project_ref,
+            environment_ref=environment_ref,
             name=name
         )
 
@@ -675,7 +687,7 @@ if __name__ == '__main__':
                 print("ERROR: Build manifest missing required '{delegate_tag}.Environments' value".format(delegate_tag=delegate_tag))
                 exit(1)
 
-            for environment_id, environment in config[delegate_tag]['Environments'].items():
+            for environment_id, __environment__ in config[delegate_tag]['Environments'].items():
                 if args.environment is not None and args.environment.lower() != environment_id.lower():
                     CloudFormationBuilder.debug_print("Skipping environment: {environment_id}".format(environment_id=environment_id))
                     continue
@@ -690,7 +702,7 @@ if __name__ == '__main__':
 
                 required_parameters = ['AwsAccountId', 'Templates']
                 for parameter in required_parameters:
-                    if parameter not in environment:
+                    if parameter not in __environment__:
                         print("ERROR: Build manifest missing required '{delegate_tag}.Environment.{parameter}' value".format(
                             delegate_tag=delegate_tag,
                             parameter=parameter
@@ -700,7 +712,7 @@ if __name__ == '__main__':
                 # noinspection DuplicatedCode
                 template_count = 1
 
-                for template in environment['Templates']:
+                for template in __environment__['Templates']:
 
                     template_filename = "{template_path}/{environment_id}/{template}".format(
                         template_path=template_path,
@@ -712,33 +724,72 @@ if __name__ == '__main__':
                         print("ERROR: Template file specified in build manifest ({template_filename}) not found".format(template_filename=template_filename))
                         exit(1)
 
+                    # Read the input file and process into a dictionary
+                    file = open(template_filename, 'rt')
+                    yaml_content = yaml.full_load(file)
+                    file.close()
+
                     basename = os.path.splitext(os.path.basename(template))[0]
 
-                    output_filename = "{path}/{template_count:03d}.{project_id}{environment_id}{basename}.yml".format(
-                        path=path_templates,
-                        project_id=CloudFormationBuilder.to_camel(project_id),
-                        environment_id=str(environment_id).title(),
-                        template_count=template_count,
-                        basename=basename
+                    if CloudFormationBuilder.__references_prefix_project__ is False:
+                        project_id_ref = ''
+                    else:
+                        project_id_ref = project_id
+
+                    if CloudFormationBuilder.__references_prefix_environment__ is False:
+                        environment_id_ref = ''
+                    else:
+                        environment_id_ref = environment_id
+
+                    if 'stack_name' in yaml_content['template'].keys():
+                        stack_name = yaml_content['template']['stack_name']
+                    else:
+                        stack_name = "{project_id}{environment_id}{basename}".format(
+                            project_id=str(project_id_ref).title(),
+                            environment_id=str(environment_id_ref).title(),
+                            basename=basename
+                        )
+
+                    if 'stack_name_prefix_environment' in yaml_content['template'].keys():
+                        if yaml_content['template']['stack_name_prefix_environment'] is True:
+                            stack_name = '{prefix}{stack_name}'.format(
+                                prefix=environment_id,
+                                stack_name=stack_name
+                            )
+
+                    if 'stack_name_prefix_folder' in yaml_content['template'].keys():
+                        if yaml_content['template']['stack_name_prefix_folder'] is True:
+                            stack_name = '{prefix}{stack_name}'.format(
+                                prefix=os.path.basename(os.path.dirname(template_filename)),
+                                stack_name=stack_name
+                            )
+
+                    stack_name = '{project_id}{environment_id}{stack_name}'.format(
+                        project_id=str(project_id_ref).title(),
+                        environment_id=str(environment_id_ref).title(),
+                        stack_name=stack_name
                     )
 
+                    output_filename = "{path}/{template_count:03d}.{stack_name}.yml".format(
+                        path=path_templates,
+                        template_count=template_count,
+                        stack_name=stack_name,
+                    )
                     # Generate template for this environment
                     CloudFormationBuilder.debug_print('Building CloudFormation Template')
                     CloudFormationBuilder.debug_print('')
                     CloudFormationBuilder.debug_print('Project:                      {project_id}'.format(project_id=project_id))
                     CloudFormationBuilder.debug_print('Environment:                  {environment_id}'.format(environment_id=environment_id))
                     CloudFormationBuilder.debug_print('Delegate Tag:                 {delegate_tag}'.format(delegate_tag=delegate_tag))
-                    CloudFormationBuilder.debug_print('AWS Account ID:               {aws_account_id}'.format(aws_account_id=environment['AwsAccountId']))
+                    CloudFormationBuilder.debug_print('AWS Account ID:               {aws_account_id}'.format(aws_account_id=__environment__['AwsAccountId']))
                     CloudFormationBuilder.debug_print('AWS Region:                   {aws_default_region}'.format(aws_default_region=config['AwsRegion']))
                     CloudFormationBuilder.debug_print('Template Configuration File:  {template_filename}'.format(template_filename=template_filename))
                     CloudFormationBuilder.debug_print('Compiled Template Filename:   {output_filename}'.format(output_filename=output_filename))
 
-                    tags_filename = "{path_tags}/{template_count:03d}.{project_id}{environment_id}{basename}.json".format(
+                    tags_filename = "{path_tags}/{template_count:03d}.{stack_name}.json".format(
                         path_tags=path_tags,
-                        project_id=CloudFormationBuilder.to_camel(project_id),
-                        environment_id=str(environment_id).title(),
                         template_count=template_count,
-                        basename=basename
+                        stack_name=stack_name
                     )
                     CloudFormationBuilder.debug_print('Compiled Tag Filename:        {tags_filename}'.format(tags_filename=tags_filename))
                     CloudFormationBuilder.debug_print('')
@@ -749,7 +800,7 @@ if __name__ == '__main__':
                         input_filename=template_filename,
                         output_filename=output_filename,
                         tags_filename=tags_filename,
-                        aws_account_id=environment['AwsAccountId'],
+                        aws_account_id=__environment__['AwsAccountId'],
                         aws_default_region=config['AwsRegion'],
                         service_definition=CloudFormationBuilder.to_snake(delegate_tag)
                     )
@@ -778,8 +829,8 @@ if __name__ == '__main__':
                     timestamp=timestamp_deploy
                 )
 
-                if 'WebHook' in environment:
-                    webhook = environment['WebHook']
+                if 'WebHook' in __environment__:
+                    webhook = __environment__['WebHook']
                     if 'AccountId' not in webhook:
                         print("ERROR: Environment web hook configuration missing required 'AccountID' value")
                         exit(1)
@@ -800,12 +851,12 @@ if __name__ == '__main__':
                                 environment_id=CloudFormationBuilder.to_snake(environment_id)
                             ),
                             "IAM_ROLE_ARN": "arn:aws:iam::{aws_account_id}:role/{project_id_ref}{environment_id_ref}Harness{service_id_ref}DelegateIamRole".format(
-                                aws_account_id=environment['AwsAccountId'],
+                                aws_account_id=__environment__['AwsAccountId'],
                                 project_id_ref=CloudFormationBuilder.to_aws_ref(name=project_id),
                                 service_id_ref=CloudFormationBuilder.to_aws_ref(name=delegate_tag),
                                 environment_id_ref=CloudFormationBuilder.to_aws_ref(name=environment_id)
                             ),
-                            "AWS_ACCOUNT_ID": "{aws_account_id}".format(aws_account_id=environment['AwsAccountId']),
+                            "AWS_ACCOUNT_ID": "{aws_account_id}".format(aws_account_id=__environment__['AwsAccountId']),
                             "AWS_DEFAULT_REGION": "{aws_default_region}".format(aws_default_region=config['AwsRegion']),
                             "SOURCE_S3_BUCKET": "artifacts.{service_id}.{project_id}.{environment_id}.eonx.com".format(
                                 project_id=CloudFormationBuilder.to_snake(project_id),

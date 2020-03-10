@@ -49,7 +49,6 @@ to_title() {
 
 timestamp=$(date +%s%3N)
 
-# Define the order in which regions should be deployed, US is deployed first as ACM certificates are a dependency
 regions=(UsEast1 ApSoutheast2)
 
 if [[ "${parameters[0]}" == "*" ]]; then
@@ -77,11 +76,6 @@ for project in "${projects[@]}"; do
       exit 1;
     fi
 
-    if [[ -d ../Output/${project} ]]; then
-      mkdir -p ../Backups/${project}/${timestamp}
-      mv ../Output/${project} ../Backups/${timestamp}
-    fi
-
     for region_current in "${regions[@]}"; do
       region_current_hyphen=$(echo ${region_current} | sed 's/\([a-z0-9]\)\([A-Z0-9]\)/\1-\L\2/g');
       region_current_hyphen=$(to_lower ${region_current_hyphen})
@@ -98,17 +92,18 @@ for project in "${projects[@]}"; do
                 environment=$(basename ${environment})
                 if [[ ${#} < 2 || "${environments[@]}" =~ "${environment}" ]]; then
                   environment_lower=$(to_lower ${environment})
-                  project_hyphen=$(echo ${project} | sed 's/\([a-z0-9]\)\([A-Z0-9]\)/\1-\L\2/g');
-                  project_hyphen=$(to_lower ${project_hyphen})
-                  project_hyphen_lower=$(to_lower ${project_hyphen})
-                  project_snake=$(echo ${project_hyphen_lower} | sed 's/\([a-z0-9]\)\([A-Z0-9]\)/\1-\L\2/g');
+                  project_lower=$(to_lower $(basename ${project}))
+                  aws_account_id=$(cat ./${project}/${region_folder}/Build.json | jq -r ".Infrastructure.Environments[\"${environment}\"].AwsAccountId")
+                  path_output=$(cat ./${project}/${region_folder}/Build.json | jq -r ".PathOutput")
+                  s3_bucket="artifacts.infrastructure.${project_lower}.${environment_lower}.eonx.com"
+                  s3_prefix="$(basename ${project})/${timestamp}"
 
-                  aws_account_id=$(cat ./${project}/${region_folder}/BuildManifest.json | jq -r ".Infrastructure.Environments[\"${environment}\"].AwsAccountId")
-                  s3_bucket="artifacts.infrastructure-manual.${project_hyphen_lower}.${environment_lower}.eonx.com"
-                  s3_prefix="Infrastructure/${timestamp}"
+                  if [[ ! -d ${path_output} ]]; then
+                    mkdir -p ${path_output}
+                  fi
 
                   echo
-                  echo "Project:                ${project_hyphen_lower}"
+                  echo "Project:                ${project_lower}"
                   echo "Environment:            ${environment_lower}"
                   echo "AWS Account:            ${aws_account_id}"
                   echo "AWS Region:             ${region_hyphen}"
@@ -116,13 +111,46 @@ for project in "${projects[@]}"; do
                   echo
 
                   builder \
-                    --config      ./${project}/${region_folder}/BuildManifest.json \
-                    --path-output ../Output/${project}/${region_folder} \
+                    --config      ${project}/${region_folder}/Build.json \
+                    --path-output ${path_output} \
                     --environment ${environment}
-                  echo
 
+#                  template_validation="1"
+#
+#                  for stack_basename in $(find ${path_output}/${environment}/Templates -name '*.yml' | sort --version-sort); do
+#                    stack_name=$(basename $stack_basename)
+#                    stack_name=${stack_name:4}
+#
+#                    echo
+#                    echo "Validating: ${stack_basename}"
+#                    echo
+#
+#                    aws cloudformation validate-template --template-body file://${stack_basename}
+#
+#                    error_code="${?}"
+#                    if [[ "${error_code}" != "0" ]]; then
+#                      template_validation="0"
+#                    fi
+#
+#                  done
+#
+#                  if [[ "${template_validation}" != "1" ]]; then
+#                    echo "FATAL ERROR: AWS CloudFormation validation failed";
+#                    exit 666;
+#                  fi
+#
+#                  echo
+#                  echo "---------------------------------------------------------------------------------------------------------------"
+#                  echo "Validation completed"
+#                  echo "---------------------------------------------------------------------------------------------------------------"
+
+                  # This is a load of crap- the AWS CLI craps out when a tag contains a space and is executed from a
+                  # shell script-- don't even ask, idea was stolen from here:
+                  # shell script-- don't even ask, idea was stolen from here:
+                  # (https://stackoverflow.com/questions/59400050/how-do-you-add-spaces-for-aws-cli-cloudformation-deploy)
                   # Deploy to AWS
-                  for stack_basename in $(find ../Output/${project}/${region_folder}/${environment}/Templates -name '*.yml' | sort --version-sort); do
+
+                  for stack_basename in $(find ${path_output}/${environment}/Templates -name '*.yml' | sort --version-sort); do
                     stack_name=$(basename $stack_basename)
                     stack_name=${stack_name:4}
                     stack_name=${stack_name%.*}
@@ -131,6 +159,12 @@ for project in "${projects[@]}"; do
                     echo "Assuming IAM Role"
                     iam_role="arn:aws:iam::${aws_account_id}:role/Administrator"
                     aws-google-auth -r ${iam_role}
+
+                    error_code="${?}"
+                    if [[ "${error_code}" != "0" ]]; then
+                      echo "FATAL ERROR: AWS account authentication failed with error code ${error_code}";
+                      exit ${error_code};
+                    fi
 
                     echo
                     echo "Deploying: ${stack_basename}"
@@ -154,6 +188,14 @@ for project in "${projects[@]}"; do
                     # shell script-- don't even ask, idea was stolen from here:
                     # (https://stackoverflow.com/questions/59400050/how-do-you-add-spaces-for-aws-cli-cloudformation-deploy)
 
+                    cat ${tag_filename} | jq '.[] | (.Key + "=" + .Value)' > tags.json
+                    echo "\"Hostname=$(hostname)\"" >> tags.json
+                    echo "\"Username=${USER}\"" >> tags.json
+                    echo "\"KernelName=$(uname | sed 's/#//g')\"" >> tags.json
+                    echo "\"KernelHardware=$(uname -m | sed 's/#//g')\"" >> tags.json
+                    echo "\"KernelRelease=$(uname -r | sed 's/#//g')\"" >> tags.json
+                    echo "\"KernelVersion=$(uname -v | sed 's/#//g')\"" >> tags.json
+
                     deploy=(aws cloudformation deploy \
                       --no-fail-on-empty-changeset \
                       --profile sts \
@@ -164,9 +206,28 @@ for project in "${projects[@]}"; do
                       --capabilities "CAPABILITY_NAMED_IAM" \
                       --region "${region_hyphen}" \
                       --no-fail-on-empty-changeset \
-                      --tags $(cat ${tag_filename} | jq '.[] | (.Key + "=" + .Value)')
+                      --tags $(cat tags.json)
                     )
+
+                    error_code="${?}"
+                    if [[ "${error_code}" != "0" ]]; then
+                      echo "FATAL ERROR: AWS Deployment failed with error code ${error_code}";
+                      exit ${error_code};
+                    fi
+                    echo
+
                     eval $(echo ${deploy[@]})
+
+                    error_code="${?}"
+                    if [[ "${error_code}" != "0" ]]; then
+                      echo "FATAL ERROR: AWS Deployment failed with error code ${error_code}";
+                      exit ${error_code};
+                    fi
+                    echo
+
+                    if [[ -f tags.json ]]; then
+                      rm tags.json
+                    fi
 
                     error_code="${?}"
                     if [[ "${error_code}" != "0" ]]; then
@@ -177,6 +238,7 @@ for project in "${projects[@]}"; do
 
                   done
 
+                  echo
                   echo "---------------------------------------------------------------------------------------------------------------"
                 fi
               fi
@@ -190,6 +252,14 @@ for project in "${projects[@]}"; do
 done
 
 echo
+
+
+
+
+
+
+
+
 
 
 

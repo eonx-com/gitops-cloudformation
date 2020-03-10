@@ -76,11 +76,6 @@ for project in "${projects[@]}"; do
       exit 1;
     fi
 
-    if [[ -d ../Output/${project} ]]; then
-      mkdir -p ../Backups/${project}/${timestamp}
-      mv ../Output/${project} ../Backups/${timestamp}
-    fi
-
     for region_current in "${regions[@]}"; do
       region_current_hyphen=$(echo ${region_current} | sed 's/\([a-z0-9]\)\([A-Z0-9]\)/\1-\L\2/g');
       region_current_hyphen=$(to_lower ${region_current_hyphen})
@@ -97,10 +92,15 @@ for project in "${projects[@]}"; do
                 environment=$(basename ${environment})
                 if [[ ${#} < 2 || "${environments[@]}" =~ "${environment}" ]]; then
                   environment_lower=$(to_lower ${environment})
-                  project_lower=$(to_lower ${project})
-                  aws_account_id=$(cat ./${project}/${region_folder}/BuildManifest.json | jq -r ".Infrastructure.Environments[\"${environment}\"].AwsAccountId")
-                  s3_bucket="artifacts.infrastructure-manual.${project_lower}.${environment_lower}.eonx.com"
-                  s3_prefix="Infrastructure/${timestamp}"
+                  project_lower=$(to_lower $(basename ${project}))
+                  aws_account_id=$(cat ./${project}/${region_folder}/Build.json | jq -r ".Infrastructure.Environments[\"${environment}\"].AwsAccountId")
+                  path_output=$(cat ./${project}/${region_folder}/Build.json | jq -r ".PathOutput")
+                  s3_bucket="artifacts.infrastructure.${project_lower}.${environment_lower}.eonx.com"
+                  s3_prefix="$(basename ${project})/${timestamp}"
+
+                  if [[ ! -d ${path_output} ]]; then
+                    mkdir -p ${path_output}
+                  fi
 
                   echo
                   echo "Project:                ${project_lower}"
@@ -111,9 +111,10 @@ for project in "${projects[@]}"; do
                   echo
 
                   builder \
-                    --config      ./${project}/${region_folder}/BuildManifest.json \
-                    --path-output ../Output/${project}/${region_folder} \
+                    --config      ${project}/${region_folder}/Build.json \
+                    --path-output ${path_output} \
                     --environment ${environment}
+
                   echo
                   echo "---------------------------------------------------------------------------------------------------------------"
                 fi
@@ -128,6 +129,18 @@ for project in "${projects[@]}"; do
 done
 
 echo
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
