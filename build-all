@@ -98,8 +98,9 @@ for project in "${projects[@]}"; do
                   s3_bucket="artifacts.infrastructure.${project_lower}.${environment_lower}.eonx.com"
                   s3_prefix="$(basename ${project})/${timestamp}"
 
-                  if [[ ! -d ${path_output} ]]; then
-                    mkdir -p ${path_output}
+                  if [[ -d ${path_output}/${environment} ]]; then
+                    rm -rf ${path_output}/${environment};
+                    mkdir -p ${path_output}/${environment};
                   fi
 
                   echo
@@ -108,12 +109,20 @@ for project in "${projects[@]}"; do
                   echo "AWS Account:            ${aws_account_id}"
                   echo "AWS Region:             ${region_hyphen}"
                   echo "Template Bucket:        ${s3_bucket}/${s3_prefix}"
+                  echo "Output Path:            ${path_output}"
                   echo
 
                   builder \
                     --config      ${project}/${region_folder}/Build.json \
                     --path-output ${path_output} \
                     --environment ${environment}
+
+                  error_code="${?}"
+                  if [[ "${error_code}" != "0" ]]; then
+                    echo "FATAL ERROR: Failed to build template";
+                    exit ${error_code};
+                  fi
+                  echo
 
                   echo
                   echo "---------------------------------------------------------------------------------------------------------------"

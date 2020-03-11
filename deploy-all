@@ -86,28 +86,34 @@ for project in "${projects[@]}"; do
           region_hyphen=$(echo ${region_folder} | sed 's/\([a-z0-9]\)\([A-Z0-9]\)/\1-\L\2/g');
           region_hyphen=$(to_lower ${region_hyphen})
 
+          project_basename=$(basename ${project})
+          project_basename_lower=$(to_lower ${project_basename})
+          project_hyphen_lower=$(echo ${project_basename} | sed 's/\([a-z0-9]\)\([A-Z0-9]\)/\1-\L\2/g');
+          project_hyphen_lower=$(to_lower ${project_hyphen_lower})
+
           if [[ "${region_current_hyphen}" == "${region_hyphen}" ]]; then
             for environment in ./${project}/${region_folder}/*; do
               if [[ -d ${environment} ]]; then
                 environment=$(basename ${environment})
                 if [[ ${#} < 2 || "${environments[@]}" =~ "${environment}" ]]; then
                   environment_lower=$(to_lower ${environment})
-                  project_lower=$(to_lower $(basename ${project}))
                   aws_account_id=$(cat ./${project}/${region_folder}/Build.json | jq -r ".Infrastructure.Environments[\"${environment}\"].AwsAccountId")
                   path_output=$(cat ./${project}/${region_folder}/Build.json | jq -r ".PathOutput")
-                  s3_bucket="artifacts.infrastructure.${project_lower}.${environment_lower}.eonx.com"
+                  s3_bucket="artifacts.infrastructure.${environment_lower}.${project_hyphen_lower}.eonx.com"
                   s3_prefix="$(basename ${project})/${timestamp}"
 
-                  if [[ ! -d ${path_output} ]]; then
-                    mkdir -p ${path_output}
+                  if [[ -d ${path_output}/${environment} ]]; then
+                    rm -rf ${path_output}/${environment};
+                    mkdir -p ${path_output}/${environment};
                   fi
 
                   echo
-                  echo "Project:                ${project_lower}"
+                  echo "Project:                ${project_hyphen_lower}"
                   echo "Environment:            ${environment_lower}"
                   echo "AWS Account:            ${aws_account_id}"
                   echo "AWS Region:             ${region_hyphen}"
                   echo "Template Bucket:        ${s3_bucket}/${s3_prefix}"
+                  echo "Output Path:            ${path_output}"
                   echo
 
                   builder \
@@ -115,34 +121,41 @@ for project in "${projects[@]}"; do
                     --path-output ${path_output} \
                     --environment ${environment}
 
-#                  template_validation="1"
-#
-#                  for stack_basename in $(find ${path_output}/${environment}/Templates -name '*.yml' | sort --version-sort); do
-#                    stack_name=$(basename $stack_basename)
-#                    stack_name=${stack_name:4}
-#
-#                    echo
-#                    echo "Validating: ${stack_basename}"
-#                    echo
-#
-#                    aws cloudformation validate-template --template-body file://${stack_basename}
-#
-#                    error_code="${?}"
-#                    if [[ "${error_code}" != "0" ]]; then
-#                      template_validation="0"
-#                    fi
-#
-#                  done
-#
-#                  if [[ "${template_validation}" != "1" ]]; then
-#                    echo "FATAL ERROR: AWS CloudFormation validation failed";
-#                    exit 666;
-#                  fi
-#
-#                  echo
-#                  echo "---------------------------------------------------------------------------------------------------------------"
-#                  echo "Validation completed"
-#                  echo "---------------------------------------------------------------------------------------------------------------"
+                  error_code="${?}"
+                  if [[ "${error_code}" != "0" ]]; then
+                    echo "FATAL ERROR: Failed to build template";
+                    exit ${error_code};
+                  fi
+                  echo
+
+                  #  template_validation="1"
+                  #
+                  #  for stack_basename in $(find ${path_output}/${environment}/Templates -name '*.yml' | sort --version-sort); do
+                  #    stack_name=$(basename $stack_basename)
+                  #    stack_name=${stack_name:4}
+                  #
+                  #    echo
+                  #    echo "Validating: ${stack_basename}"
+                  #    echo
+                  #
+                  #    aws cloudformation validate-template --template-body file://${stack_basename}
+                  #
+                  #    error_code="${?}"
+                  #    if [[ "${error_code}" != "0" ]]; then
+                  #      template_validation="0"
+                  #    fi
+                  #
+                  #  done
+                  #
+                  #  if [[ "${template_validation}" != "1" ]]; then
+                  #    echo "FATAL ERROR: AWS CloudFormation validation failed";
+                  #    exit 666;
+                  #  fi
+                  #
+                  #  echo
+                  #  echo "---------------------------------------------------------------------------------------------------------------"
+                  #  echo "Validation completed"
+                  #  echo "---------------------------------------------------------------------------------------------------------------"
 
                   # This is a load of crap- the AWS CLI craps out when a tag contains a space and is executed from a
                   # shell script-- don't even ask, idea was stolen from here:
@@ -182,7 +195,6 @@ for project in "${projects[@]}"; do
                     fi
 
                     tag_filename=$(echo ${stack_basename} | sed 's/\/Templates\//\/Tags\//g' | sed 's/\.yml/\.json/g')
-
 
                     # This is a load of crap- the AWS CLI craps out when a tag contains a space and is executed from a
                     # shell script-- don't even ask, idea was stolen from here:
@@ -252,6 +264,7 @@ for project in "${projects[@]}"; do
 done
 
 echo
+
 
 
 
