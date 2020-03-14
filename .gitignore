@@ -1,2 +1,3 @@
-.idea
+.deploy-history/
+.idea/
 venv/

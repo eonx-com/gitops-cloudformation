@@ -49,7 +49,11 @@ to_title() {
 
 timestamp=$(date +%s%3N)
 
-regions=(UsEast1 ApSoutheast2)
+if [[ ! -z "${REGION_TO_DEPLOY}" ]]; then
+  regions=("${REGION_TO_DEPLOY}")
+else
+  regions=(UsEast1 ApSoutheast2)
+fi
 
 if [[ "${parameters[0]}" == "*" ]]; then
   projects=()
@@ -167,86 +171,117 @@ for project in "${projects[@]}"; do
                     stack_name=$(basename $stack_basename)
                     stack_name=${stack_name:4}
                     stack_name=${stack_name%.*}
+                    stack_md5=`md5sum ${stack_basename} | awk '{ print $1 }'`
 
-                    echo
-                    echo "Assuming IAM Role"
-                    iam_role="arn:aws:iam::${aws_account_id}:role/Administrator"
-                    aws-google-auth -r ${iam_role}
-
-                    error_code="${?}"
-                    if [[ "${error_code}" != "0" ]]; then
-                      echo "FATAL ERROR: AWS account authentication failed with error code ${error_code}";
-                      exit ${error_code};
+                    if [[ ! -d "./.deploy-history" ]]; then
+                      mkdir ./.deploy-history
                     fi
 
-                    echo
-                    echo "Deploying: ${stack_basename}"
+                    filename_md5=`echo ${stack_basename} | md5sum | awk '{ print $1 }'`
+                    filename_hash="./.deploy-history/${filename_md5}"
 
-                    # Make sure the manual deployment bucket exists
-
-                    if aws s3 ls "s3://${s3_bucket}" --profile=sts 2>&1 | grep -q 'NoSuchBucket'; then
-                      echo "Creating template bucket: s3://${s3_bucket}"
-                      aws s3 mb "s3://${s3_bucket}" --profile=sts
+                    skip="0"
+                    if [[ -f "${filename_hash}" ]]; then
+                      stack_last_md5=$(cat "${filename_hash}")
+                      if [[ "${stack_last_md5}" == ${stack_md5} ]]; then
+                          echo "Skipping Unchanged Template: ${stack_basename} (${filename_md5}:${stack_md5})"
+                          skip="1"
+                      fi
                     fi
 
-                    if aws s3 ls "s3://${s3_bucket}" --profile=sts 2>&1 | grep -q 'NoSuchBucket'; then
-                      echo "ERROR: Could not create S3 bucket '${s3_bucket}'"
-                      exit 1;
+                    if [[ "${skip}" == "0" ]]; then
+                      echo
+                      echo "Assuming IAM Role"
+                      iam_role="arn:aws:iam::${aws_account_id}:role/Administrator"
+                      aws-google-auth -r ${iam_role}
+
+                      error_code="${?}"
+                      if [[ "${error_code}" != "0" ]]; then
+                        echo "FATAL ERROR: AWS account authentication failed with error code ${error_code}";
+                        exit ${error_code};
+                      fi
+                      echo
+
+                      echo "Deploying: ${stack_basename} (${stack_md5})"
+
+                      # Make sure the manual deployment bucket exists
+
+                      if aws s3 ls "s3://${s3_bucket}" --profile=sts 2>&1 | grep -q 'NoSuchBucket'; then
+                        echo "Creating template bucket: s3://${s3_bucket}"
+                        aws s3 mb "s3://${s3_bucket}" --profile=sts
+                      fi
+
+                      if aws s3 ls "s3://${s3_bucket}" --profile=sts 2>&1 | grep -q 'NoSuchBucket'; then
+                        echo "ERROR: Could not create S3 bucket '${s3_bucket}'"
+                        exit 1;
+                      fi
+
+                      tag_filename=$(echo ${stack_basename} | sed 's/\/Templates\//\/Tags\//g' | sed 's/\.yml/\.json/g')
+
+                      # This is a load of crap- the AWS CLI craps out when a tag contains a space and is executed from a
+                      # shell script-- don't even ask, idea was stolen from here:
+                      # (https://stackoverflow.com/questions/59400050/how-do-you-add-spaces-for-aws-cli-cloudformation-deploy)
+
+                      cat ${tag_filename} | jq '.[] | (.Key + "=" + .Value)' > tags.json
+                      echo "\"DeployedByHostname=$(hostname)\"" >> tags.json
+                      echo "\"DeployedByUsername=${USER}\"" >> tags.json
+                      echo "\"DeployedByKernelName=$(uname | sed 's/#//g')\"" >> tags.json
+                      echo "\"DeployedByKernelHardware=$(uname -m | sed 's/#//g')\"" >> tags.json
+                      echo "\"DeployedByKernelRelease=$(uname -r | sed 's/#//g')\"" >> tags.json
+                      echo "\"DeployedByKernelVersion=$(uname -v | sed 's/#//g')\"" >> tags.json
+
+                      deploy=(aws cloudformation deploy \
+                        --no-fail-on-empty-changeset \
+                        --profile sts \
+                        --stack-name "${stack_name}" \
+                        --template-file "${stack_basename}" \
+                        --s3-bucket "${s3_bucket}" \
+                        --s3-prefix "${s3_prefix}" \
+                        --capabilities "CAPABILITY_NAMED_IAM" \
+                        --region "${region_hyphen}" \
+                        --no-fail-on-empty-changeset \
+                        --tags $(cat tags.json)
+                      )
+
+                      error_code="${?}"
+                      if [[ "${error_code}" != "0" ]]; then
+                        echo "FATAL ERROR: AWS Deployment failed with error code ${error_code}";
+                        echo
+                        aws cloudformation describe-stack-events \
+                          --stack-name "${stack_name}" \
+                          --profile sts | jq '{LogicalResourceId: .StackEvents[].LogicalResourceId, Reason:.StackEvents[].ResourceStatusReason} | select(.Reason != null)';
+                        echo
+                        exit ${error_code};
+                      fi
+                      echo
+
+                      eval $(echo ${deploy[@]})
+
+                      error_code="${?}"
+                      if [[ "${error_code}" != "0" ]]; then
+                        echo "FATAL ERROR: AWS Deployment failed with error code ${error_code}";
+                        echo
+                        aws cloudformation describe-stack-events \
+                          --stack-name "${stack_name}" \
+                          --profile sts | jq '{LogicalResourceId: .StackEvents[].LogicalResourceId, Reason:.StackEvents[].ResourceStatusReason} | select(.Reason != null)';
+                        echo
+                        exit ${error_code};
+                      fi
+                      echo
+
+                      if [[ -f tags.json ]]; then
+                        rm tags.json
+                      fi
+
+                      error_code="${?}"
+                      if [[ "${error_code}" != "0" ]]; then
+                        echo "FATAL ERROR: AWS Deployment failed with error code ${error_code}";
+                        exit ${error_code};
+                      fi
+                      echo
+
+                      echo "${stack_md5}" > ${filename_hash}
                     fi
-
-                    tag_filename=$(echo ${stack_basename} | sed 's/\/Templates\//\/Tags\//g' | sed 's/\.yml/\.json/g')
-
-                    # This is a load of crap- the AWS CLI craps out when a tag contains a space and is executed from a
-                    # shell script-- don't even ask, idea was stolen from here:
-                    # (https://stackoverflow.com/questions/59400050/how-do-you-add-spaces-for-aws-cli-cloudformation-deploy)
-
-                    cat ${tag_filename} | jq '.[] | (.Key + "=" + .Value)' > tags.json
-                    echo "\"Hostname=$(hostname)\"" >> tags.json
-                    echo "\"Username=${USER}\"" >> tags.json
-                    echo "\"KernelName=$(uname | sed 's/#//g')\"" >> tags.json
-                    echo "\"KernelHardware=$(uname -m | sed 's/#//g')\"" >> tags.json
-                    echo "\"KernelRelease=$(uname -r | sed 's/#//g')\"" >> tags.json
-                    echo "\"KernelVersion=$(uname -v | sed 's/#//g')\"" >> tags.json
-
-                    deploy=(aws cloudformation deploy \
-                      --no-fail-on-empty-changeset \
-                      --profile sts \
-                      --stack-name "${stack_name}" \
-                      --template-file "${stack_basename}" \
-                      --s3-bucket "${s3_bucket}" \
-                      --s3-prefix "${s3_prefix}" \
-                      --capabilities "CAPABILITY_NAMED_IAM" \
-                      --region "${region_hyphen}" \
-                      --no-fail-on-empty-changeset \
-                      --tags $(cat tags.json)
-                    )
-
-                    error_code="${?}"
-                    if [[ "${error_code}" != "0" ]]; then
-                      echo "FATAL ERROR: AWS Deployment failed with error code ${error_code}";
-                      exit ${error_code};
-                    fi
-                    echo
-
-                    eval $(echo ${deploy[@]})
-
-                    error_code="${?}"
-                    if [[ "${error_code}" != "0" ]]; then
-                      echo "FATAL ERROR: AWS Deployment failed with error code ${error_code}";
-                      exit ${error_code};
-                    fi
-                    echo
-
-                    if [[ -f tags.json ]]; then
-                      rm tags.json
-                    fi
-
-                    error_code="${?}"
-                    if [[ "${error_code}" != "0" ]]; then
-                      echo "FATAL ERROR: AWS Deployment failed with error code ${error_code}";
-                      exit ${error_code};
-                    fi
-                    echo
 
                   done
 
