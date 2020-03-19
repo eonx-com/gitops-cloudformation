@@ -84,8 +84,8 @@ class CloudFormationBuilder:
 
             if '_tags' in record:
                 if record['_tags'] is True:
-                    if 'properties' not in record:
-                        record['properties'] = {}
+                    if 'Properties' not in record:
+                        record['Properties'] = {}
                     if 'Tags' not in record['Properties']:
                         record['Properties']['Tags'] = []
 
