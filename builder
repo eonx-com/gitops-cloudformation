@@ -82,15 +82,15 @@ class CloudFormationBuilder:
                         'output': output
                     }
 
-            if 'tags' in record:
-                if record['tags'] is True:
+            if '_tags' in record:
+                if record['_tags'] is True:
                     if 'properties' not in record:
                         record['properties'] = {}
-                    if 'tags' not in record['properties']:
-                        record['properties']['tags'] = []
+                    if 'Tags' not in record['Properties']:
+                        record['Properties']['Tags'] = []
 
                     # Add a name tag for the resource
-                    record['properties']['tags'].append({
+                    record['Properties']['Tags'].append({
                         'Key': 'Name',
                         'Value': record_id
                     })
@@ -457,7 +457,7 @@ class CloudFormationBuilder:
             if record_type not in ['parameter', 'resource']:
                 raise Exception('Unknown record type specified')
 
-            if record_type == 'tags':
+            if record_type == '_tags':
                 if isinstance(record, dict) is False:
                     raise Exception('Invalid data type for "tags" key, expected dictionary')
                 for key, value in record.items():
