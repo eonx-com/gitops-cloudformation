@@ -249,7 +249,7 @@ for project in "${projects[@]}"; do
                         echo
                         aws cloudformation describe-stack-events \
                           --stack-name "${stack_name}" \
-                          --profile sts | jq '{LogicalResourceId: .StackEvents[].LogicalResourceId, Reason:.StackEvents[].ResourceStatusReason} | select(.Reason != null)';
+                          --profile sts | jq '.StackEvents[] | {LogicalResourceId: .LogicalResourceId, Reason:.ResourceStatusReason} | select(.Reason != null)';
                         echo
                         exit ${error_code};
                       fi
@@ -263,7 +263,7 @@ for project in "${projects[@]}"; do
                         echo
                         aws cloudformation describe-stack-events \
                           --stack-name "${stack_name}" \
-                          --profile sts | jq '{LogicalResourceId: .StackEvents[].LogicalResourceId, Reason:.StackEvents[].ResourceStatusReason} | select(.Reason != null)';
+                          --profile sts | jq '.StackEvents[] | {Timestamp: .Timestamp, EventId: .EventId, LogicalResourceId: .LogicalResourceId, Reason:.ResourceStatusReason} | select(.Reason != null)';
                         echo
                         exit ${error_code};
                       fi
