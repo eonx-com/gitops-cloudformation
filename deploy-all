@@ -3,35 +3,6 @@
 clear;
 parameters=("$@")
 
-if [[ ${#} < 1 ]]; then
-  echo "---------------------------------------------------------------------------------------------------------------"
-  echo "Manual (But Still Lazy) CloudFormation Template Build & Deploy"
-  echo "---------------------------------------------------------------------------------------------------------------"
-  echo
-  echo "IMPORTANT NOTE: Because I am lazy it is expected that this script is run from a folder containing one or more"
-  echo "                project folder. If you're feeling energetic you can refudge my bash and make this more flexible"
-  echo
-  echo "Usage:"
-  echo
-  echo "  build-all [PROJECT] [ENVIRONMENT...1] [ENVIRONMENT...n]";
-  echo
-  echo "Parameters:"
-  echo
-  echo "  PROJECT           Name of the project folder to be build (use asterisk in quotes \"*\" to build all projects)"
-  echo "  ENVIRONMENT...x   Name of the environment (or environments) to be build. Omit this parameter to build all environments"
-  echo
-  echo "Examples:"
-  echo
-  echo "  build-all Manage Dev Uat      Build 'Manage' project in the 'Dev' and 'Uat' environments only"
-  echo "  build-all Manage              Build 'Manage' project in all environments"
-  echo "  build-all \"*\"               Build all projects and all environments"
-  echo
-fi
-
-echo "---------------------------------------------------------------------------------------------------------------"
-echo "Manual (But Still Lazy) CloudFormation Template Build & Deploy (Patent Pending)"
-echo "---------------------------------------------------------------------------------------------------------------"
-
 # Convert parameter to lowercase
 to_lower() {
   python -c "print('${1}'.lower())";

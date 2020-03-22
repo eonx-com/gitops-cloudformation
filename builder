@@ -72,7 +72,7 @@ class CloudFormationBuilder:
                     output_required_parameters = ['_ref', '_description', '_name']
                     for output_parameter in output_required_parameters:
                         if output_parameter not in output.keys():
-                            print(output.keys())
+                            print(output)
                             print('ERROR: Missing required output key "{output_parameter}"'.format(output_parameter=output_parameter))
                             exit(1)
 
@@ -427,14 +427,14 @@ class CloudFormationBuilder:
                     for i in range(0, indent + 1):
                         rendered += '  '
 
-                rendered += '{id}:'.format(id=record_id)
+                rendered += '{id}: '.format(id=record_id)
 
                 if isinstance(record, list):
                     rendered += CloudFormationBuilder.render_list(record, indent + 1)
                 elif isinstance(record, dict):
                     rendered += CloudFormationBuilder.render_dict(record, indent + 1)
                 else:
-                    rendered += ' {item}'.format(item=record)
+                    rendered += '{item}'.format(item=record)
 
                 newline = True
 
